@@ -1,123 +1,64 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, StatusBar, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, StatusBar } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
 import { supabase } from './lib/supabase';
+import AuthNavigator from './src/navigation/AuthNavigator';
+import HomeScreen from './src/screens/HomeScreen';
+import { savePushToken } from './src/services/notifications';
+
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function App() {
-  const [dbStatus, setDbStatus] = useState('Checking Supabase connection...');
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkConnection() {
-      try {
-        const { data, error } = await supabase.from('cases').select('count', { count: 'exact', head: true });
-        if (error) {
-          // If RLS blocks unauthenticated query or table exists, client is connected
-          setDbStatus(`Supabase Client Initialized (Status: ${error.message || 'Ready'})`);
-        } else {
-          setDbStatus('Connected to Supabase Database successfully!');
-        }
-      } catch (err) {
-        setDbStatus(`Client configured. Add your Supabase credentials in .env`);
-      } finally {
-        setLoading(false);
+    // 1. Fetch initial session on app mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        savePushToken(session.user.id);
       }
-    }
-    checkConnection();
+      setLoading(false);
+    });
+
+    // 2. Listen for auth changes (login, logout, token refresh, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+        savePushToken(session.user.id);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-      <View style={styles.card}>
-        <Text style={styles.badge}>PHASE 1 COMPLETE</Text>
-        <Text style={styles.title}>⚖️ LexTrack</Text>
-        <Text style={styles.subtitle}>Lawyer Case Management App</Text>
-
-        <View style={styles.statusBox}>
-          <Text style={styles.statusLabel}>Backend Setup Status:</Text>
-          {loading ? (
-            <ActivityIndicator color="#38bdf8" style={{ marginTop: 10 }} />
-          ) : (
-            <Text style={styles.statusText}>{dbStatus}</Text>
-          )}
-        </View>
-
-        <Text style={styles.instructions}>
-          Next Steps:
-          {"\n"}1. Add EXPO_PUBLIC_SUPABASE_URL & EXPO_PUBLIC_SUPABASE_ANON_KEY to .env
-          {"\n"}2. Execute supabase_schema.sql in Supabase SQL Editor
-          {"\n"}3. Proceed to Phase 2 (Authentication)
-        </Text>
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <ActivityIndicator size="large" color="#38bdf8" />
       </View>
-    </SafeAreaView>
+    );
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer>
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        {session ? <HomeScreen /> : <AuthNavigator />}
+      </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
     backgroundColor: '#0f172a',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  card: {
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  badge: {
-    backgroundColor: '#0369a1',
-    color: '#e0f2fe',
-    fontSize: 12,
-    fontWeight: '700',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#f8fafc',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#94a3b8',
-    marginBottom: 24,
-  },
-  statusBox: {
-    backgroundColor: '#0f172a',
-    borderRadius: 8,
-    padding: 16,
-    width: '100%',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '600',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  statusText: {
-    fontSize: 14,
-    color: '#38bdf8',
-    fontWeight: '500',
-  },
-  instructions: {
-    fontSize: 13,
-    color: '#cbd5e1',
-    lineHeight: 20,
-    textAlign: 'left',
-    width: '100%',
   },
 });

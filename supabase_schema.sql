@@ -66,3 +66,20 @@ drop trigger if exists set_updated_at on cases;
 create trigger set_updated_at
 before update on cases
 for each row execute procedure update_timestamp();
+
+-- 5. AUTOMATIC PROFILE CREATION TRIGGER ON SIGNUP
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id)
+  values (new.id)
+  on conflict (id) do nothing;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_auth_user_created on auth.users;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();

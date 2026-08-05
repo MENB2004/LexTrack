@@ -27,6 +27,21 @@ export async function savePushToken(userId) {
       return null;
     }
 
+    // Gracefully handle Expo Go sandbox (SDK 54+ remote notifications limitation)
+    let isExpoGo = false;
+    try {
+      const Constants = require('expo-constants').default;
+      const ExecutionEnvironment = require('expo-constants').ExecutionEnvironment;
+      isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+    } catch (e) {
+      // fallback if expo-constants is not loaded
+    }
+
+    if (isExpoGo) {
+      console.log('Push notifications skipped: Remote notifications are disabled in the Expo Go client. Create a development build to test notifications.');
+      return null;
+    }
+
     // Platform-specific configuration for Android
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {

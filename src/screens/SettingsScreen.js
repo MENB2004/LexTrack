@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen() {
   const { isDark, toggle, colors } = useTheme();
-  const userEmail = supabase.auth.currentUser?.email || 'lawyer@firm.com';
+  const [userEmail, setUserEmail] = useState(supabase.auth.currentUser?.email || 'lawyer@firm.com');
   const [digestEnabled, setDigestEnabled] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -47,6 +47,10 @@ export default function SettingsScreen() {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id || supabase.auth.currentUser?.id;
         if (!userId) return;
+
+        if (session?.user?.email && active) {
+          setUserEmail(session.user.email);
+        }
 
         const { data, error } = await supabase
           .from('profiles')

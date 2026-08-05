@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import Logo from '../components/Logo';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -52,7 +53,8 @@ export default function LoginScreen({ navigation }) {
       <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
         <View style={styles.innerContainer}>
           <View style={styles.headerContainer}>
-            <Text style={styles.logo}>⚖️ LexTrack</Text>
+            <Logo size={70} />
+            <Text style={[styles.logo, { marginTop: 12 }]}>LexTrack</Text>
             <Text style={styles.subtitle}>Secure Case Management for Lawyers</Text>
           </View>
 

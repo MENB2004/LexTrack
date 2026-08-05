@@ -13,6 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import Logo from '../components/Logo';
 
 export default function SignUpScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -80,7 +81,8 @@ export default function SignUpScreen({ navigation }) {
       <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
           <View style={styles.headerContainer}>
-            <Text style={styles.logo}>⚖️ LexTrack</Text>
+            <Logo size={70} />
+            <Text style={[styles.logo, { marginTop: 12 }]}>LexTrack</Text>
             <Text style={styles.subtitle}>Create your secure case manager account</Text>
           </View>
 

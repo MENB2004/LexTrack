@@ -67,7 +67,11 @@ export default function AddCaseScreen({ navigation }) {
     setErrorMsg('');
 
     try {
-      const user = supabase.auth.currentUser;
+      let user = supabase.auth.currentUser;
+      if (!user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        user = session?.user;
+      }
       if (!user) {
         setErrorMsg('Authentication error. Please log in again.');
         setLoading(false);

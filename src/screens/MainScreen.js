@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import Logo from '../components/Logo';
 
 // Import Screen Components
 import DashboardScreen from './DashboardScreen';
@@ -152,7 +153,10 @@ export default function MainScreen({ navigation }) {
         ]}
       >
         <View style={[styles.drawerHeader, { borderColor: colors.border }]}>
-          <Text style={[styles.drawerLogo, { color: colors.text }]}>⚖️ LexTrack</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Logo size={32} />
+            <Text style={[styles.drawerLogo, { color: colors.text, marginLeft: 8 }]}>LexTrack</Text>
+          </View>
           <TouchableOpacity onPress={() => toggleDrawer(false)}>
             <Ionicons name="close" size={24} color={colors.textSub} />
           </TouchableOpacity>

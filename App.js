@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, ActivityIndicator, StatusBar, Platform } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, StatusBar, Platform, Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { supabase } from './lib/supabase';
 import AuthNavigator from './src/navigation/AuthNavigator';
@@ -7,6 +7,7 @@ import MainNavigator from './src/navigation/MainNavigator';
 import { savePushToken } from './src/services/notifications';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Updates from 'expo-updates';
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -36,6 +37,36 @@ function AppContent() {
     return () => {
       subscription.unsubscribe();
     };
+  }, []);
+
+  // Check for OTA updates via EAS Update
+  useEffect(() => {
+    async function checkUpdates() {
+      if (__DEV__) return; // Don't check for OTA updates during local development
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          Alert.alert(
+            'Update Required',
+            'A new version of LexTrack is available. The app will restart now to apply the update.',
+            [
+              {
+                text: 'Update Now',
+                onPress: async () => {
+                  await Updates.reloadAsync();
+                },
+              },
+            ],
+            { cancelable: false }
+          );
+        }
+      } catch (err) {
+        console.warn('EAS Update Check Error:', err);
+      }
+    }
+
+    checkUpdates();
   }, []);
 
   if (loading) {

@@ -526,7 +526,9 @@ const styles = StyleSheet.create({
   },
   textArea: {
     textAlignVertical: 'top',
-    height: 100,
+    minHeight: 110,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   saveButton: {
     backgroundColor: '#0284c7',

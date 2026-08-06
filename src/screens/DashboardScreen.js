@@ -10,6 +10,7 @@ import {
   StatusBar,
   Pressable,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -30,6 +31,7 @@ export default function DashboardScreen({ navigation, selectView }) {
   // Case list sorting states
   const [sortBy, setSortBy] = useState('hearing_date');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [showFabMenu, setShowFabMenu] = useState(false);
 
   const fetchCases = useCallback(async (currentUserId) => {
     if (!currentUserId) return;
@@ -409,11 +411,58 @@ export default function DashboardScreen({ navigation, selectView }) {
       {/* FAB */}
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.accent }]}
-        onPress={() => selectView ? selectView('AddCase') : selectView ? selectView('AddCase') : navigation.navigate('Add Case')}
+        onPress={() => setShowFabMenu(true)}
         activeOpacity={0.8}
       >
         <Ionicons name="add" size={28} color="#ffffff" />
       </TouchableOpacity>
+
+      {/* FAB Menu Modal Overlay */}
+      {showFabMenu && (
+        <Modal transparent visible={showFabMenu} animationType="fade" onRequestClose={() => setShowFabMenu(false)}>
+          <Pressable style={styles.fabOverlay} onPress={() => setShowFabMenu(false)}>
+            <View style={styles.fabMenuContainer}>
+              {/* Option 2: Add New Case */}
+              <TouchableOpacity
+                style={[styles.fabOption, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => {
+                  setShowFabMenu(false);
+                  if (selectView) {
+                    selectView('AddCase');
+                  } else {
+                    navigation.navigate('Add Case');
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.fabOptionLabel, { color: colors.text }]}>Add New Case</Text>
+                <View style={[styles.fabOptionIcon, { backgroundColor: colors.accent }]}>
+                  <Ionicons name="briefcase-outline" size={18} color="#ffffff" />
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 1: Add Client */}
+              <TouchableOpacity
+                style={[styles.fabOption, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => {
+                  setShowFabMenu(false);
+                  if (selectView) {
+                    selectView('Clients');
+                  } else {
+                    navigation.navigate('Clients');
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.fabOptionLabel, { color: colors.text }]}>Add Client</Text>
+                <View style={[styles.fabOptionIcon, { backgroundColor: colors.accent }]}>
+                  <Ionicons name="person-add-outline" size={18} color="#ffffff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -639,5 +688,43 @@ const styles = StyleSheet.create({
   sortPillText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  fabOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+    paddingBottom: 90,
+    paddingRight: 20,
+  },
+  fabMenuContainer: {
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  fabOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 6,
+    borderRadius: 30,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  fabOptionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 10,
+  },
+  fabOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

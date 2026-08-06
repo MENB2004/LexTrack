@@ -14,6 +14,22 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import Logo from '../components/Logo';
+import { Ionicons } from '@expo/vector-icons';
+
+const getPasswordStrength = (pwd) => {
+  if (!pwd) return { score: 0, label: '', color: '#94a3b8' };
+  let score = 0;
+  if (pwd.length >= 6) score += 1;
+  if (pwd.length >= 10) score += 1;
+  if (/[a-z]/.test(pwd)) score += 1;
+  if (/[A-Z]/.test(pwd)) score += 1;
+  if (/[0-9]/.test(pwd)) score += 1;
+  if (/[^a-zA-Z0-9]/.test(pwd)) score += 1;
+
+  if (score <= 2) return { score, label: 'Weak', color: '#ef4444' };
+  if (score <= 4) return { score, label: 'Medium', color: '#f59e0b' };
+  return { score, label: 'Strong', color: '#10b981' };
+};
 
 export default function SignUpScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -22,6 +38,42 @@ export default function SignUpScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [generatedInfo, setGeneratedInfo] = useState('');
+
+  const generateStrongPassword = () => {
+    const length = 14;
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    const symbols = '!@#$%^&*()_+~`|}{[]:;?><,./-=';
+    const allChars = lowercase + uppercase + numbers + symbols;
+
+    let pwd = '';
+    // Ensure we have at least one character from each class
+    pwd += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
+    pwd += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
+    pwd += numbers.charAt(Math.floor(Math.random() * numbers.length));
+    pwd += symbols.charAt(Math.floor(Math.random() * symbols.length));
+
+    // Fill the rest
+    for (let i = 4; i < length; i++) {
+      pwd += allChars.charAt(Math.floor(Math.random() * allChars.length));
+    }
+
+    // Shuffle
+    pwd = pwd.split('').sort(() => 0.5 - Math.random()).join('');
+
+    setPassword(pwd);
+    setConfirmPassword(pwd);
+    setShowPassword(true);
+    setGeneratedInfo('Strong password generated and applied.');
+    
+    // Auto-clear notification after a few seconds
+    setTimeout(() => {
+      setGeneratedInfo('');
+    }, 5000);
+  };
 
   const handleSignUp = async () => {
     if (!email || !password || !confirmPassword) {
@@ -116,20 +168,52 @@ export default function SignUpScreen({ navigation }) {
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
+             <View style={styles.inputContainer}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Password</Text>
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
               <TextInput
                 style={styles.input}
                 placeholder="Minimum 6 characters"
                 placeholderTextColor="#64748b"
                 value={password}
-                onChangeText={setPassword}
-                secureTextEntry
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (generatedInfo) setGeneratedInfo('');
+                }}
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoComplete="new-password"
                 editable={!loading}
               />
             </View>
+
+            {password.length > 0 && (
+              <View style={styles.strengthContainer}>
+                <View style={styles.strengthLabelRow}>
+                  <Text style={styles.strengthLabel}>Password Strength: </Text>
+                  <Text style={[styles.strengthValue, { color: getPasswordStrength(password).color }]}>
+                    {getPasswordStrength(password).label}
+                  </Text>
+                </View>
+                <View style={styles.strengthBarBg}>
+                  <View style={[
+                    styles.strengthBar,
+                    {
+                      width: `${(getPasswordStrength(password).score / 6) * 100}%`,
+                      backgroundColor: getPasswordStrength(password).color
+                    }
+                  ]} />
+                </View>
+              </View>
+            )}
 
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Confirm Password</Text>
@@ -138,13 +222,30 @@ export default function SignUpScreen({ navigation }) {
                 placeholder="Confirm password"
                 placeholderTextColor="#64748b"
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  if (generatedInfo) setGeneratedInfo('');
+                }}
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoComplete="new-password"
                 editable={!loading}
               />
             </View>
+
+            <TouchableOpacity
+              style={styles.generateButton}
+              onPress={generateStrongPassword}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="key" size={16} color="#38bdf8" style={{ marginRight: 6 }} />
+              <Text style={styles.generateButtonText}>Generate Strong Password</Text>
+            </TouchableOpacity>
+
+            {generatedInfo ? (
+              <Text style={styles.generatedInfoText}>{generatedInfo}</Text>
+            ) : null}
 
             <TouchableOpacity
               style={styles.signUpButton}
@@ -298,5 +399,62 @@ const styles = StyleSheet.create({
     color: '#38bdf8',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  eyeBtn: {
+    padding: 4,
+    marginBottom: 4,
+  },
+  generateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    backgroundColor: '#0f172a',
+    marginBottom: 20,
+  },
+  generateButtonText: {
+    color: '#38bdf8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  generatedInfoText: {
+    color: '#34d399',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 16,
+    fontWeight: '500',
+  },
+  strengthContainer: {
+    marginBottom: 16,
+  },
+  strengthLabelRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  strengthLabel: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  strengthValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  strengthBarBg: {
+    height: 6,
+    backgroundColor: '#0f172a',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  strengthBar: {
+    height: '100%',
+    borderRadius: 3,
   },
 });

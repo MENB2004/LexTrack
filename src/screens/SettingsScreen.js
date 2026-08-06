@@ -29,6 +29,13 @@ export default function SettingsScreen() {
   const [barNumber, setBarNumber] = useState('');
   const [specialty, setSpecialty] = useState('');
   const [phone, setPhone] = useState('');
+
+  // Draft profile states for editing
+  const [editFullName, setEditFullName] = useState('');
+  const [editBarNumber, setEditBarNumber] = useState('');
+  const [editSpecialty, setEditSpecialty] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+
   const [showEditModal, setShowEditModal] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
@@ -115,7 +122,7 @@ export default function SettingsScreen() {
   };
 
   const handleSaveProfile = async () => {
-    if (!fullName.trim()) {
+    if (!editFullName.trim()) {
       Alert.alert('Validation Error', 'Full Name is required.');
       return;
     }
@@ -128,16 +135,20 @@ export default function SettingsScreen() {
       const { error } = await supabase
         .from('profiles')
         .update({
-          full_name: fullName.trim(),
-          bar_number: barNumber.trim(),
-          specialty: specialty.trim(),
-          phone: phone.trim()
+          full_name: editFullName.trim(),
+          bar_number: editBarNumber.trim(),
+          specialty: editSpecialty.trim(),
+          phone: editPhone.trim()
         })
         .eq('id', userId);
 
       if (error) {
         Alert.alert('Error saving profile', error.message);
       } else {
+        setFullName(editFullName.trim());
+        setBarNumber(editBarNumber.trim());
+        setSpecialty(editSpecialty.trim());
+        setPhone(editPhone.trim());
         setShowEditModal(false);
         Alert.alert('Success', 'Profile updated successfully.');
       }
@@ -186,7 +197,13 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={[styles.editProfileBtn, { borderColor: colors.accent, borderWidth: 1 }]}
-            onPress={() => setShowEditModal(true)}
+            onPress={() => {
+              setEditFullName(fullName);
+              setEditBarNumber(barNumber);
+              setEditSpecialty(specialty);
+              setEditPhone(phone);
+              setShowEditModal(true);
+            }}
             activeOpacity={0.8}
           >
             <Ionicons name="create-outline" size={16} color={colors.accent} style={{ marginRight: 6 }} />
@@ -283,8 +300,8 @@ export default function SettingsScreen() {
                 style={[styles.modalInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
                 placeholder="e.g. Harvey Specter"
                 placeholderTextColor={colors.textSub}
-                value={fullName}
-                onChangeText={setFullName}
+                value={editFullName}
+                onChangeText={setEditFullName}
               />
             </View>
 
@@ -295,8 +312,8 @@ export default function SettingsScreen() {
                 style={[styles.modalInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
                 placeholder="e.g. BAR-2026-9042"
                 placeholderTextColor={colors.textSub}
-                value={barNumber}
-                onChangeText={setBarNumber}
+                value={editBarNumber}
+                onChangeText={setEditBarNumber}
               />
             </View>
 
@@ -307,8 +324,8 @@ export default function SettingsScreen() {
                 style={[styles.modalInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
                 placeholder="e.g. Corporate Law / Family Law"
                 placeholderTextColor={colors.textSub}
-                value={specialty}
-                onChangeText={setSpecialty}
+                value={editSpecialty}
+                onChangeText={setEditSpecialty}
               />
             </View>
 
@@ -317,10 +334,10 @@ export default function SettingsScreen() {
               <Text style={[styles.label, { color: colors.textSub }]}>Contact Phone</Text>
               <TextInput
                 style={[styles.modalInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
-                placeholder="e.g. +1 555-0199"
+                placeholder="e.g. 5550199"
                 placeholderTextColor={colors.textSub}
-                value={phone}
-                onChangeText={setPhone}
+                value={editPhone}
+                onChangeText={(text) => setEditPhone(text.replace(/[^0-9]/g, ''))}
                 keyboardType="phone-pad"
               />
             </View>

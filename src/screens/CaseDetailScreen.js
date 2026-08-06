@@ -36,6 +36,11 @@ export default function CaseDetailScreen({ route, navigation }) {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  // Edit Notes States
+  const [showEditNotesModal, setShowEditNotesModal] = useState(false);
+  const [editNotesText, setEditNotesText] = useState('');
+  const [editNotesLoading, setEditNotesLoading] = useState(false);
+
   const fetchCaseDetails = async () => {
     try {
       const { data, error } = await supabase
@@ -166,6 +171,31 @@ export default function CaseDetailScreen({ route, navigation }) {
     }
   };
 
+  const handleSaveNotes = async () => {
+    if (editNotesLoading) return;
+    setEditNotesLoading(true);
+    try {
+      const { error } = await supabase
+        .from('cases')
+        .update({
+          notes: editNotesText.trim() || null,
+        })
+        .eq('id', caseId);
+
+      if (error) {
+        Alert.alert('Error updating notes', error.message);
+      } else {
+        setShowEditNotesModal(false);
+        fetchCaseDetails();
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'An unexpected error occurred.');
+    } finally {
+      setEditNotesLoading(false);
+    }
+  };
+
   const getCaseTypeColor = (type) => {
     switch (type) {
       case 'Civil': return '#0284c7';
@@ -281,7 +311,21 @@ export default function CaseDetailScreen({ route, navigation }) {
 
           {/* NOTES DISPLAY */}
           <View style={[styles.notesGroup, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.label, { color: colors.textSub }]}>Case Notes</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={[styles.label, { color: colors.textSub, marginBottom: 0 }]}>Case Notes</Text>
+              {caseData.status === 'Active' && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditNotesText(caseData.notes || '');
+                    setShowEditNotesModal(true);
+                  }}
+                  style={{ padding: 4 }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="create-outline" size={18} color={colors.accent} />
+                </TouchableOpacity>
+              )}
+            </View>
             <Text style={[styles.notesText, { color: colors.text }]}>{caseData.notes || 'No notes added yet.'}</Text>
           </View>
 
@@ -415,6 +459,47 @@ export default function CaseDetailScreen({ route, navigation }) {
                   <ActivityIndicator color="#ffffff" />
                 ) : (
                   <Text style={styles.confirmSaveText}>Schedule</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* EDIT CASE NOTES MODAL */}
+      <Modal visible={showEditNotesModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Case Notes</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>Update notes for hearings or ongoing case details.</Text>
+
+            <TextInput
+              style={[styles.modalInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border, minHeight: 150 }]}
+              placeholder="Enter details about hearings or upcoming actions..."
+              placeholderTextColor={colors.textSub}
+              value={editNotesText}
+              onChangeText={setEditNotesText}
+              multiline
+              numberOfLines={6}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={() => setShowEditNotesModal(false)}
+                disabled={editNotesLoading}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.textSub }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmSaveBtn, { backgroundColor: colors.accent }]}
+                onPress={handleSaveNotes}
+                disabled={editNotesLoading}
+              >
+                {editNotesLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmSaveText}>Save Notes</Text>
                 )}
               </TouchableOpacity>
             </View>

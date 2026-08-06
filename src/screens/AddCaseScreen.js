@@ -20,7 +20,7 @@ import { useTheme } from '../context/ThemeContext';
 
 const CASE_TYPES = ['Civil', 'Criminal', 'Family', 'Corporate'];
 
-export default function AddCaseScreen({ navigation }) {
+export default function AddCaseScreen({ navigation, selectView }) {
   const { isDark, colors } = useTheme();
   const [caseNumber, setCaseNumber] = useState('');
   const [clientName, setClientName] = useState('');
@@ -137,7 +137,11 @@ export default function AddCaseScreen({ navigation }) {
         setNotes('');
         
         // Go back to dashboard tab
-        navigation.navigate('Dashboard');
+        if (selectView) {
+          selectView('Dashboard');
+        } else {
+          navigation.navigate('Dashboard');
+        }
       }
     } catch (err) {
       setErrorMsg('An unexpected error occurred. Please try again.');
@@ -253,34 +257,7 @@ export default function AddCaseScreen({ navigation }) {
             )}
           </View>
 
-          {/* STATUS */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSub }]}>Status</Text>
-            <View style={styles.toggleRow}>
-              <TouchableOpacity
-                style={[
-                  styles.toggleBtn,
-                  { backgroundColor: colors.background, borderColor: colors.border },
-                  status === 'Active' && [styles.toggleBtnActive, { backgroundColor: colors.success, borderColor: colors.success }]
-                ]}
-                onPress={() => setStatus('Active')}
-                disabled={loading}
-              >
-                <Text style={[styles.toggleText, { color: colors.textSub }, status === 'Active' && styles.toggleTextActive]}>Active</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.toggleBtn,
-                  { backgroundColor: colors.background, borderColor: colors.border },
-                  status === 'Closed' && [styles.toggleBtnActiveClosed, { backgroundColor: colors.danger, borderColor: colors.danger }]
-                ]}
-                onPress={() => setStatus('Closed')}
-                disabled={loading}
-              >
-                <Text style={[styles.toggleText, { color: colors.textSub }, status === 'Closed' && styles.toggleTextActive]}>Closed</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+
 
           {/* PRIORITY TOGGLE */}
           <View style={styles.priorityRow}>

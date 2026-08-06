@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,6 +8,7 @@ import {
   Dimensions,
   StatusBar,
   Pressable,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +31,23 @@ export default function MainScreen({ navigation }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const backAction = () => {
+      if (currentView !== 'Dashboard') {
+        setCurrentView('Dashboard');
+        return true;
+      }
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [currentView]);
 
   const toggleDrawer = (open) => {
     if (open) {
@@ -76,7 +94,7 @@ export default function MainScreen({ navigation }) {
       case 'Calendar':
         return <CalendarScreen navigation={navigation} />;
       case 'AddCase':
-        return <AddCaseScreen navigation={navigation} />;
+        return <AddCaseScreen navigation={navigation} selectView={selectView} />;
       case 'Analytics':
         return <AnalyticsScreen navigation={navigation} />;
       case 'Settings':
@@ -111,13 +129,23 @@ export default function MainScreen({ navigation }) {
 
       {/* TOP HEADER BAR */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <TouchableOpacity
-          onPress={() => toggleDrawer(true)}
-          style={styles.menuButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="menu" size={26} color={colors.text} />
-        </TouchableOpacity>
+        {currentView !== 'Dashboard' ? (
+          <TouchableOpacity
+            onPress={() => selectView('Dashboard')}
+            style={styles.menuButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={26} color={colors.text} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={() => toggleDrawer(true)}
+            style={styles.menuButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="menu" size={26} color={colors.text} />
+          </TouchableOpacity>
+        )}
         <Text style={[styles.headerTitle, { color: colors.text }]}>{getViewTitle()}</Text>
         <View style={{ width: 28 }} />
       </View>

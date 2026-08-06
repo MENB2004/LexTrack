@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import MainScreen from '../screens/MainScreen';
 import CaseDetailScreen from '../screens/CaseDetailScreen';
 import DayDashboardScreen from '../screens/DayDashboardScreen';
+import ClientDetailScreen from '../screens/ClientDetailScreen';
 
 const Stack = createStackNavigator();
 
@@ -20,6 +21,7 @@ export default function MainNavigator() {
       <Stack.Screen name="Main" component={MainScreen} />
       <Stack.Screen name="CaseDetail" component={CaseDetailScreen} />
       <Stack.Screen name="DayDashboard" component={DayDashboardScreen} />
+      <Stack.Screen name="ClientDetail" component={ClientDetailScreen} />
     </Stack.Navigator>
   );
 }

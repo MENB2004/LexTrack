@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,12 +11,15 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { schedulePriorityAlarms, scheduleRegularAlarms } from '../utils/alarms';
 import { useTheme } from '../context/ThemeContext';
+import courtsData from '../utils/courts.json';
+import { logActivity } from '../utils/activity';
 
 const CASE_TYPES = ['Civil', 'Criminal', 'Family', 'Corporate'];
 
@@ -30,6 +33,65 @@ export default function AddCaseScreen({ navigation, selectView }) {
   const [status, setStatus] = useState('Active');
   const [isPriority, setIsPriority] = useState(false);
   const [notes, setNotes] = useState('');
+
+  // Clients directory states
+  const [clientId, setClientId] = useState(null);
+  const [clients, setClients] = useState([]);
+  const [showClientModal, setShowClientModal] = useState(false);
+
+  // Court directory states
+  const [courtName, setCourtName] = useState('');
+  const [courtroom, setCourtroom] = useState('');
+  const [showCourtModal, setShowCourtModal] = useState(false);
+  const [showCourtroomModal, setShowCourtroomModal] = useState(false);
+
+  // User role check state
+  const [isParalegal, setIsParalegal] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const fetchRoleAndClients = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || supabase.auth.currentUser?.id;
+        if (!userId) return;
+
+        // Fetch user role
+        const { data: memberData } = await supabase
+          .from('firm_members')
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (memberData?.role === 'paralegal' && active) {
+          setIsParalegal(true);
+        }
+
+        // Fetch clients list
+        const { data: clientsData } = await supabase
+          .from('clients')
+          .select('id, full_name')
+          .order('full_name', { ascending: true });
+
+        if (clientsData && active) {
+          setClients(clientsData);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    
+    // Add navigation listener to refresh client list when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchRoleAndClients();
+    });
+
+    fetchRoleAndClients();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [navigation]);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -53,6 +115,12 @@ export default function AddCaseScreen({ navigation, selectView }) {
   const onHearingDateChange = (event, selectedDate) => {
     setShowHearingPicker(false);
     if (selectedDate) {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      if (selectedDate < today) {
+        Alert.alert('Validation Error', 'Next Hearing Date cannot be in the past.');
+        return;
+      }
       setNextHearingDate(selectedDate);
     }
   };
@@ -78,6 +146,21 @@ export default function AddCaseScreen({ navigation, selectView }) {
         return;
       }
 
+      // Role check: paralegals cannot register new cases
+      const { data: memberData } = await supabase
+        .from('firm_members')
+        .select('role, firm_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (memberData?.role === 'paralegal') {
+        Alert.alert('Permission Denied', 'Paralegals are not authorized to register new cases.');
+        setLoading(false);
+        return;
+      }
+
+      const firmId = memberData?.firm_id || null;
+
       // Check for case number uniqueness
       const { data: existingCases, error: checkError } = await supabase
         .from('cases')
@@ -102,14 +185,18 @@ export default function AddCaseScreen({ navigation, selectView }) {
         .from('cases')
         .insert({
           user_id: user.id,
+          firm_id: firmId,
           case_number: caseNumber.trim(),
           client_name: clientName.trim(),
+          client_id: clientId,
           case_type: caseType,
           date_filed: dateFiledFormatted,
           next_hearing_date: nextHearingFormatted,
           status: status,
           is_priority: isPriority,
           notes: notes.trim() || null,
+          court_name: courtName || null,
+          courtroom: courtroom || null,
         })
         .select()
         .single();
@@ -117,6 +204,16 @@ export default function AddCaseScreen({ navigation, selectView }) {
       if (error) {
         setErrorMsg(error.message);
       } else {
+        // Log Activity
+        await logActivity(newCase.id, 'created', `Case registered under ${newCase.case_type} field.`);
+
+        // Notify user of case registration success
+        Alert.alert(
+          'Case Registered',
+          `Case Number ${newCase.case_number} has been created successfully.`,
+          [{ text: 'OK' }]
+        );
+
         // Schedule local alarms
         if (newCase) {
           if (newCase.is_priority) {
@@ -129,12 +226,15 @@ export default function AddCaseScreen({ navigation, selectView }) {
         // Reset form fields
         setCaseNumber('');
         setClientName('');
+        setClientId(null);
         setCaseType('Civil');
         setDateFiled(new Date());
         setNextHearingDate(null);
         setStatus('Active');
         setIsPriority(false);
         setNotes('');
+        setCourtName('');
+        setCourtroom('');
         
         // Go back to dashboard tab
         if (selectView) {
@@ -150,6 +250,18 @@ export default function AddCaseScreen({ navigation, selectView }) {
       setLoading(false);
     }
   };
+
+  if (isParalegal) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 40 }]}>
+        <Ionicons name="lock-closed" size={64} color={colors.danger} />
+        <Text style={[styles.title, { color: colors.text, marginTop: 16, textAlign: 'center', fontSize: 22, fontWeight: 'bold' }]}>Permission Denied</Text>
+        <Text style={{ color: colors.textSub, textAlign: 'center', marginTop: 8, lineHeight: 20 }}>
+          Your user profile has a 'Paralegal' role. Paralegals are not authorized to register new cases in this firm.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -179,15 +291,17 @@ export default function AddCaseScreen({ navigation, selectView }) {
 
           {/* CLIENT NAME */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSub }]}>Client Full Name *</Text>
-            <TextInput
-              style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
-              placeholder="e.g. Harvey Specter"
-              placeholderTextColor={colors.textSub}
-              value={clientName}
-              onChangeText={clientName => setClientName(clientName)}
-              editable={!loading}
-            />
+            <Text style={[styles.label, { color: colors.textSub }]}>Client *</Text>
+            <TouchableOpacity
+              style={[styles.pickerTrigger, { backgroundColor: colors.background, borderColor: colors.border }]}
+              onPress={() => setShowClientModal(true)}
+              disabled={loading}
+            >
+              <Text style={[styles.pickerTriggerText, { color: clientName ? colors.text : colors.textSub }]}>
+                {clientName || 'Select Client from Directory...'}
+              </Text>
+              <Ionicons name="people" size={18} color={colors.textSub} />
+            </TouchableOpacity>
           </View>
 
           {/* CASE TYPE */}
@@ -202,6 +316,38 @@ export default function AddCaseScreen({ navigation, selectView }) {
               <Ionicons name="chevron-down" size={18} color={colors.textSub} />
             </TouchableOpacity>
           </View>
+
+          {/* COURT SELECTION */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: colors.textSub }]}>Court *</Text>
+            <TouchableOpacity
+              style={[styles.pickerTrigger, { backgroundColor: colors.background, borderColor: colors.border }]}
+              onPress={() => setShowCourtModal(true)}
+              disabled={loading}
+            >
+              <Text style={[styles.pickerTriggerText, { color: courtName ? colors.text : colors.textSub }]}>
+                {courtName || 'Select Court from Directory...'}
+              </Text>
+              <Ionicons name="business" size={18} color={colors.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          {/* COURTROOM SELECTION */}
+          {courtName ? (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.textSub }]}>Courtroom / Hall *</Text>
+              <TouchableOpacity
+                style={[styles.pickerTrigger, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() => setShowCourtroomModal(true)}
+                disabled={loading}
+              >
+                <Text style={[styles.pickerTriggerText, { color: courtroom ? colors.text : colors.textSub }]}>
+                  {courtroom || 'Select Courtroom...'}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={colors.textSub} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           {/* DATE FILED */}
           <View style={styles.inputGroup}>
@@ -253,6 +399,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={onHearingDateChange}
+                minimumDate={new Date()}
               />
             )}
           </View>
@@ -342,6 +489,148 @@ export default function AddCaseScreen({ navigation, selectView }) {
                     {item}
                   </Text>
                   {caseType === item && <Ionicons name="checkmark" size={20} color="#38bdf8" />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* CLIENT PICKER MODAL */}
+      <Modal visible={showClientModal} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowClientModal(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.modalHeader, { borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Client</Text>
+              <TouchableOpacity onPress={() => setShowClientModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            {clients.length > 0 ? (
+              <FlatList
+                data={clients}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalItem,
+                      { borderColor: colors.border },
+                      clientId === item.id && [styles.modalItemActive, { backgroundColor: colors.background }]
+                    ]}
+                    onPress={() => {
+                      setClientId(item.id);
+                      setClientName(item.full_name);
+                      setShowClientModal(false);
+                    }}
+                  >
+                    <Text style={[styles.modalItemText, clientId === item.id && styles.modalItemTextActive]}>
+                      {item.full_name}
+                    </Text>
+                    {clientId === item.id && <Ionicons name="checkmark" size={20} color="#38bdf8" />}
+                  </TouchableOpacity>
+                )}
+              />
+            ) : (
+              <View style={{ padding: 30, alignItems: 'center' }}>
+                <Text style={{ color: colors.textSub, textAlign: 'center', marginBottom: 16 }}>
+                  No clients in your directory yet.
+                </Text>
+                <TouchableOpacity
+                  style={{ backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}
+                  onPress={() => {
+                    setShowClientModal(false);
+                    if (selectView) selectView('Clients');
+                  }}
+                >
+                  <Text style={{ color: '#ffffff', fontWeight: 'bold' }}>Go to Client Directory</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* COURT PICKER MODAL */}
+      <Modal visible={showCourtModal} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCourtModal(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.modalHeader, { borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Court</Text>
+              <TouchableOpacity onPress={() => setShowCourtModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={courtsData}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    { borderColor: colors.border },
+                    courtName === item.name && [styles.modalItemActive, { backgroundColor: colors.background }]
+                  ]}
+                  onPress={() => {
+                    setCourtName(item.name);
+                    setCourtroom('');
+                    setShowCourtModal(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.modalItemText, courtName === item.name && styles.modalItemTextActive, { color: colors.text }]}>
+                      {item.name}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colors.textSub, marginTop: 2 }}>{item.address}</Text>
+                  </View>
+                  {courtName === item.name && <Ionicons name="checkmark" size={20} color="#38bdf8" />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* COURTROOM PICKER MODAL */}
+      <Modal visible={showCourtroomModal} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCourtroomModal(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.modalHeader, { borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Courtroom</Text>
+              <TouchableOpacity onPress={() => setShowCourtroomModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={courtsData.find(c => c.name === courtName)?.courtrooms || []}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    { borderColor: colors.border },
+                    courtroom === item && [styles.modalItemActive, { backgroundColor: colors.background }]
+                  ]}
+                  onPress={() => {
+                    setCourtroom(item);
+                    setShowCourtroomModal(false);
+                  }}
+                >
+                  <Text style={[styles.modalItemText, courtroom === item && styles.modalItemTextActive, { color: colors.text }]}>
+                    {item}
+                  </Text>
+                  {courtroom === item && <Ionicons name="checkmark" size={20} color="#38bdf8" />}
                 </TouchableOpacity>
               )}
             />

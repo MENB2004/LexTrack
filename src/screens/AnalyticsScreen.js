@@ -44,12 +44,27 @@ export default function AnalyticsScreen() {
 
       const todayStr = new Date().toISOString().split('T')[0];
 
-      // 1. Fetch all cases for the stats calculations
-      const { data: allCases, error: statsError } = await supabase
-        .from('cases')
-        .select('status, is_priority, next_hearing_date, date_filed')
-        .eq('user_id', currentUserId);
+      // Fetch user's firm membership
+      const { data: memberData } = await supabase
+        .from('firm_members')
+        .select('firm_id')
+        .eq('user_id', currentUserId)
+        .maybeSingle();
 
+      const firmId = memberData?.firm_id;
+
+      // 1. Fetch all cases for the stats calculations
+      let statsQuery = supabase
+        .from('cases')
+        .select('status, is_priority, next_hearing_date, date_filed');
+
+      if (firmId) {
+        statsQuery = statsQuery.or(`user_id.eq.${currentUserId},firm_id.eq.${firmId}`);
+      } else {
+        statsQuery = statsQuery.eq('user_id', currentUserId);
+      }
+
+      const { data: allCases, error: statsError } = await statsQuery;
       if (statsError) throw statsError;
 
       const casesList = allCases || [];
@@ -64,14 +79,21 @@ export default function AnalyticsScreen() {
       setStats({ ongoing, completed, upcoming, priority });
 
       // 2. Fetch top 5 upcoming hearings for the list
-      const { data: nextHearings, error: listError } = await supabase
+      let hearingsQuery = supabase
         .from('cases')
         .select('id, case_number, client_name, next_hearing_date, is_priority')
         .eq('status', 'Active')
-        .eq('user_id', currentUserId)
         .gte('next_hearing_date', todayStr)
         .order('next_hearing_date', { ascending: true })
         .limit(5);
+
+      if (firmId) {
+        hearingsQuery = hearingsQuery.or(`user_id.eq.${currentUserId},firm_id.eq.${firmId}`);
+      } else {
+        hearingsQuery = hearingsQuery.eq('user_id', currentUserId);
+      }
+
+      const { data: nextHearings, error: listError } = await hearingsQuery;
 
       if (listError) throw listError;
       setUpcomingHearings(nextHearings || []);
@@ -82,14 +104,14 @@ export default function AnalyticsScreen() {
           name: 'Active',
           population: ongoing,
           color: '#34d399',
-          legendFontColor: '#cbd5e1',
+          legendFontColor: colors.textSub,
           legendFontSize: 13,
         },
         {
           name: 'Closed',
           population: completed,
           color: '#f87171',
-          legendFontColor: '#cbd5e1',
+          legendFontColor: colors.textSub,
           legendFontSize: 13,
         },
       ];
@@ -137,7 +159,7 @@ export default function AnalyticsScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [colors.textSub]);
 
   useFocusEffect(
     useCallback(() => {
@@ -146,10 +168,10 @@ export default function AnalyticsScreen() {
   );
 
   const chartConfig = {
-    backgroundGradientFrom: '#1e293b',
-    backgroundGradientTo: '#1e293b',
-    color: (opacity = 1) => `rgba(56, 189, 248, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
+    backgroundGradientFrom: colors.surface,
+    backgroundGradientTo: colors.surface,
+    color: (opacity = 1) => colors.accent,
+    labelColor: (opacity = 1) => colors.textSub,
     strokeWidth: 2,
     barPercentage: 0.6,
     decimalPlaces: 0,
@@ -210,13 +232,13 @@ export default function AnalyticsScreen() {
           ) : (
             <BarChart
               data={chartData.bar}
-              width={screenWidth - 60}
+              width={screenWidth - 72}
               height={220}
               chartConfig={{
                 ...chartConfig,
                 backgroundGradientFrom: colors.surface,
                 backgroundGradientTo: colors.surface,
-                color: (opacity = 1) => `rgba(56, 189, 248, ${opacity})`,
+                color: (opacity = 1) => colors.accent,
               }}
               style={{
                 marginVertical: 8,
@@ -300,8 +322,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   statCard: {
-    flex: 1,
-    minWidth: '45%',
+    width: (screenWidth - 52) / 2,
     backgroundColor: '#1e293b',
     borderRadius: 12,
     padding: 16,
@@ -342,7 +363,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 20,
   },
-  listCard: {
+  upcomingSection: {
     backgroundColor: '#1e293b',
     borderRadius: 16,
     padding: 20,
@@ -350,7 +371,7 @@ const styles = StyleSheet.create({
     borderColor: '#334155',
     marginBottom: 30,
   },
-  listTitle: {
+  sectionTitle: {
     fontSize: 15,
     fontWeight: 'bold',
     color: '#f8fafc',

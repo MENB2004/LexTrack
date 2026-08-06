@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
   StatusBar,
   Pressable,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { schedulePriorityAlarms, cancelPriorityAlarms } from '../utils/alarms';
 import { useTheme } from '../context/ThemeContext';
+import { logActivity } from '../utils/activity';
 
 export default function DashboardScreen({ navigation, selectView }) {
   const { isDark, colors } = useTheme();
@@ -23,6 +25,11 @@ export default function DashboardScreen({ navigation, selectView }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [userRole, setUserRole] = useState('owner');
+  
+  // Case list sorting states
+  const [sortBy, setSortBy] = useState('hearing_date');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   const fetchCases = useCallback(async (currentUserId) => {
     if (!currentUserId) return;
@@ -64,6 +71,17 @@ export default function DashboardScreen({ navigation, selectView }) {
           setUserId(currentUserId);
           fetchCases(currentUserId);
 
+          // Fetch user role
+          const { data: memberData } = await supabase
+            .from('firm_members')
+            .select('role')
+            .eq('user_id', currentUserId)
+            .maybeSingle();
+
+          if (memberData?.role && active) {
+            setUserRole(memberData.role);
+          }
+
           channel = supabase
             .channel(`dashboard-cases-${currentUserId}`)
             .on(
@@ -87,16 +105,31 @@ export default function DashboardScreen({ navigation, selectView }) {
 
     initDashboard();
 
+    // Reload list on focus (ensures sync back from case registration/details changes)
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        const uId = session?.user?.id || supabase.auth.currentUser?.id;
+        if (uId && active) {
+          fetchCases(uId);
+        }
+      });
+    });
+
     return () => {
       active = false;
+      unsubscribeFocus();
       if (channel) {
         supabase.removeChannel(channel);
       }
     };
-  }, [fetchCases]);
+  }, [navigation, fetchCases]);
 
   // Toggle priority directly from dashboard card (premium micro-interaction)
   const togglePriority = async (caseId, currentPriority, caseItem) => {
+    if (userRole === 'paralegal') {
+      Alert.alert('Permission Denied', 'Paralegals are not authorized to toggle case priority.');
+      return;
+    }
     const nextPriority = !currentPriority;
     try {
       const { error } = await supabase
@@ -107,6 +140,14 @@ export default function DashboardScreen({ navigation, selectView }) {
       if (error) {
         console.error('Error updating priority:', error.message);
       } else {
+        // Log Activity
+        await logActivity(caseId, nextPriority ? 'priority_on' : 'priority_off', nextPriority ? 'Case flagged as High Priority.' : 'Case priority star removed.');
+
+        // Update local state dynamically for instant UI update
+        setCases(prev =>
+          prev.map(c => (c.id === caseId ? { ...c, is_priority: nextPriority } : c))
+        );
+
         if (nextPriority) {
           await schedulePriorityAlarms(caseItem);
         } else {
@@ -126,6 +167,28 @@ export default function DashboardScreen({ navigation, selectView }) {
     
     const matchesPriority = !priorityFilter || item.is_priority;
     return matchesSearch && matchesPriority;
+  });
+
+  // Client-side cases sorting logic
+  const sortedCases = [...filteredCases].sort((a, b) => {
+    if (sortBy === 'priority') {
+      const valA = a.is_priority ? 1 : 0;
+      const valB = b.is_priority ? 1 : 0;
+      return sortOrder === 'asc' ? valB - valA : valA - valB;
+    } else if (sortBy === 'hearing_date') {
+      const dateA = a.next_hearing_date ? new Date(a.next_hearing_date).getTime() : Infinity;
+      const dateB = b.next_hearing_date ? new Date(b.next_hearing_date).getTime() : Infinity;
+      
+      if (dateA === Infinity && dateB !== Infinity) return 1;
+      if (dateB === Infinity && dateA !== Infinity) return -1;
+      
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    } else if (sortBy === 'case_number') {
+      const numA = a.case_number?.toLowerCase() || '';
+      const numB = b.case_number?.toLowerCase() || '';
+      return sortOrder === 'asc' ? numA.localeCompare(numB) : numB.localeCompare(numA);
+    }
+    return 0;
   });
 
   const getStatusStyle = (status) => {
@@ -239,14 +302,91 @@ export default function DashboardScreen({ navigation, selectView }) {
         </TouchableOpacity>
       </View>
 
+      {/* SORT ROW */}
+      <View style={styles.sortRow}>
+        <Text style={[styles.sortLabel, { color: colors.textSub }]}>Sort by:</Text>
+        
+        {/* Priority Sort Pill */}
+        <TouchableOpacity
+          style={[
+            styles.sortPill,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            sortBy === 'priority' && [styles.activeSortPill, { borderColor: colors.accent }]
+          ]}
+          onPress={() => {
+            if (sortBy === 'priority') {
+              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+            } else {
+              setSortBy('priority');
+              setSortOrder('desc');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="star" size={14} color={sortBy === 'priority' ? colors.accent : colors.textSub} style={{ marginRight: 4 }} />
+          <Text style={[styles.sortPillText, { color: sortBy === 'priority' ? colors.text : colors.textSub }]}>Importance</Text>
+          {sortBy === 'priority' && (
+            <Ionicons name={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'} size={12} color={colors.accent} style={{ marginLeft: 4 }} />
+          )}
+        </TouchableOpacity>
+
+        {/* Hearing Date Sort Pill */}
+        <TouchableOpacity
+          style={[
+            styles.sortPill,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            sortBy === 'hearing_date' && [styles.activeSortPill, { borderColor: colors.accent }]
+          ]}
+          onPress={() => {
+            if (sortBy === 'hearing_date') {
+              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+            } else {
+              setSortBy('hearing_date');
+              setSortOrder('asc');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="calendar" size={14} color={sortBy === 'hearing_date' ? colors.accent : colors.textSub} style={{ marginRight: 4 }} />
+          <Text style={[styles.sortPillText, { color: sortBy === 'hearing_date' ? colors.text : colors.textSub }]}>Hearing</Text>
+          {sortBy === 'hearing_date' && (
+            <Ionicons name={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'} size={12} color={colors.accent} style={{ marginLeft: 4 }} />
+          )}
+        </TouchableOpacity>
+
+        {/* Case Number Sort Pill */}
+        <TouchableOpacity
+          style={[
+            styles.sortPill,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            sortBy === 'case_number' && [styles.activeSortPill, { borderColor: colors.accent }]
+          ]}
+          onPress={() => {
+            if (sortBy === 'case_number') {
+              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+            } else {
+              setSortBy('case_number');
+              setSortOrder('asc');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="list" size={14} color={sortBy === 'case_number' ? colors.accent : colors.textSub} style={{ marginRight: 4 }} />
+          <Text style={[styles.sortPillText, { color: sortBy === 'case_number' ? colors.text : colors.textSub }]}>Case No.</Text>
+          {sortBy === 'case_number' && (
+            <Ionicons name={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'} size={12} color={colors.accent} style={{ marginLeft: 4 }} />
+          )}
+        </TouchableOpacity>
+      </View>
+
       {/* LIST SECTION */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#38bdf8" />
         </View>
-      ) : filteredCases.length > 0 ? (
+      ) : sortedCases.length > 0 ? (
         <FlatList
-          data={filteredCases}
+          data={sortedCases}
           keyExtractor={(item) => item.id}
           renderItem={renderCaseItem}
           contentContainerStyle={styles.listContent}
@@ -470,5 +610,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 18,
+  },
+  sortRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  sortLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginRight: 4,
+  },
+  sortPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  activeSortPill: {
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+  },
+  sortPillText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import Logo from '../components/Logo';
+import { supabase } from '../../lib/supabase';
 
 // Import Screen Components
 import DashboardScreen from './DashboardScreen';
@@ -21,6 +22,7 @@ import CalendarScreen from './CalendarScreen';
 import AddCaseScreen from './AddCaseScreen';
 import AnalyticsScreen from './AnalyticsScreen';
 import SettingsScreen from './SettingsScreen';
+import ClientListScreen from './ClientListScreen';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DRAWER_WIDTH = 280;
@@ -31,6 +33,29 @@ export default function MainScreen({ navigation }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const [userRole, setUserRole] = useState('owner');
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || supabase.auth.currentUser?.id;
+        if (userId) {
+          const { data } = await supabase
+            .from('firm_members')
+            .select('role')
+            .eq('user_id', userId)
+            .maybeSingle();
+          if (data?.role) {
+            setUserRole(data.role);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchRole();
+  }, []);
 
   useEffect(() => {
     const backAction = () => {
@@ -95,6 +120,8 @@ export default function MainScreen({ navigation }) {
         return <CalendarScreen navigation={navigation} />;
       case 'AddCase':
         return <AddCaseScreen navigation={navigation} selectView={selectView} />;
+      case 'Clients':
+        return <ClientListScreen navigation={navigation} />;
       case 'Analytics':
         return <AnalyticsScreen navigation={navigation} />;
       case 'Settings':
@@ -109,6 +136,7 @@ export default function MainScreen({ navigation }) {
       case 'Dashboard': return 'Cases Dashboard';
       case 'Calendar': return 'Hearing Calendar';
       case 'AddCase': return 'Register Case';
+      case 'Clients': return 'Client Directory';
       case 'Analytics': return 'Caseload Analytics';
       case 'Settings': return 'App Settings';
       default: return 'LexTrack';
@@ -118,7 +146,8 @@ export default function MainScreen({ navigation }) {
   const menuItems = [
     { name: 'Dashboard', label: 'Cases Dashboard', icon: 'folder-open-outline', activeIcon: 'folder-open' },
     { name: 'Calendar', label: 'Hearing Calendar', icon: 'calendar-outline', activeIcon: 'calendar' },
-    { name: 'AddCase', label: 'Register New Case', icon: 'add-circle-outline', activeIcon: 'add-circle' },
+    ...(userRole !== 'paralegal' ? [{ name: 'AddCase', label: 'Register New Case', icon: 'add-circle-outline', activeIcon: 'add-circle' }] : []),
+    { name: 'Clients', label: 'Client Directory', icon: 'people-outline', activeIcon: 'people' },
     { name: 'Analytics', label: 'Caseload Analytics', icon: 'bar-chart-outline', activeIcon: 'bar-chart' },
     { name: 'Settings', label: 'Settings & Profiles', icon: 'settings-outline', activeIcon: 'settings' },
   ];

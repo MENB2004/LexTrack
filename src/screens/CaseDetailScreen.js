@@ -11,6 +11,7 @@ import {
   Alert,
   StatusBar,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -18,6 +19,8 @@ import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { schedulePriorityAlarms, cancelPriorityAlarms, scheduleRegularAlarms } from '../utils/alarms';
 import { useTheme } from '../context/ThemeContext';
+import { logActivity } from '../utils/activity';
+import courtsData from '../utils/courts.json';
 
 export default function CaseDetailScreen({ route, navigation }) {
   const { isDark, colors } = useTheme();
@@ -41,6 +44,18 @@ export default function CaseDetailScreen({ route, navigation }) {
   const [editNotesText, setEditNotesText] = useState('');
   const [editNotesLoading, setEditNotesLoading] = useState(false);
 
+  // Timeline / Activity states
+  const [activities, setActivities] = useState([]);
+
+  // Court Registry selection states
+  const [selectedCourtName, setSelectedCourtName] = useState('');
+  const [selectedCourtroom, setSelectedCourtroom] = useState('');
+  const [showCourtModal, setShowCourtModal] = useState(false);
+  const [showCourtroomModal, setShowCourtroomModal] = useState(false);
+
+  // User permission role state
+  const [userRole, setUserRole] = useState('owner');
+
   const fetchCaseDetails = async () => {
     try {
       const { data, error } = await supabase
@@ -57,6 +72,36 @@ export default function CaseDetailScreen({ route, navigation }) {
         if (data.next_hearing_date) {
           setNewHearingDate(new Date(data.next_hearing_date));
         }
+        if (data.court_name) {
+          setSelectedCourtName(data.court_name);
+        }
+        if (data.courtroom) {
+          setSelectedCourtroom(data.courtroom);
+        }
+
+        // Fetch User's Role in firm
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || supabase.auth.currentUser?.id;
+        if (userId) {
+          const { data: memberData } = await supabase
+            .from('firm_members')
+            .select('role')
+            .eq('user_id', userId)
+            .maybeSingle();
+          if (memberData?.role) {
+            setUserRole(memberData.role);
+          }
+        }
+
+        // Fetch activities log
+        const { data: actData } = await supabase
+          .from('case_activities')
+          .select('*')
+          .eq('case_id', caseId)
+          .order('created_at', { ascending: false });
+        if (actData) {
+          setActivities(actData);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -71,6 +116,10 @@ export default function CaseDetailScreen({ route, navigation }) {
 
   const togglePriority = async () => {
     if (!caseData) return;
+    if (userRole === 'paralegal') {
+      Alert.alert('Permission Denied', 'Paralegals are not authorized to toggle case priority.');
+      return;
+    }
     const nextPriority = !caseData.is_priority;
     try {
       const { error } = await supabase
@@ -83,6 +132,9 @@ export default function CaseDetailScreen({ route, navigation }) {
       } else {
         const updatedCase = { ...caseData, is_priority: nextPriority };
         setCaseData(updatedCase);
+
+        // Log Activity
+        await logActivity(caseId, nextPriority ? 'priority_on' : 'priority_off', nextPriority ? 'Case flagged as High Priority.' : 'Case priority star removed.');
         
         if (nextPriority) {
           await schedulePriorityAlarms(updatedCase);
@@ -91,6 +143,7 @@ export default function CaseDetailScreen({ route, navigation }) {
           // Recoil/Reschedule normal alarms
           await scheduleRegularAlarms(updatedCase);
         }
+        fetchCaseDetails();
       }
     } catch (err) {
       console.error(err);
@@ -98,6 +151,10 @@ export default function CaseDetailScreen({ route, navigation }) {
   };
 
   const handleCloseCase = async () => {
+    if (userRole === 'paralegal' || userRole === 'associate') {
+      Alert.alert('Permission Denied', 'Only firm owners/partners can close case folders.');
+      return;
+    }
     setCloseLoading(true);
     try {
       const { error } = await supabase
@@ -112,6 +169,9 @@ export default function CaseDetailScreen({ route, navigation }) {
       if (error) {
         Alert.alert('Error', error.message);
       } else {
+        // Log Activity
+        await logActivity(caseId, 'closed', `Case marked as Closed. Remark: ${closingNote.trim() || 'None'}`);
+
         await cancelPriorityAlarms(caseId);
         setShowCloseModal(false);
         setClosingNote('');
@@ -125,33 +185,40 @@ export default function CaseDetailScreen({ route, navigation }) {
   };
 
   const handleScheduleHearing = async () => {
+    if (userRole === 'paralegal') {
+      Alert.alert('Permission Denied', 'Paralegals are not authorized to schedule court hearings.');
+      return;
+    }
+    if (!selectedCourtName) {
+      Alert.alert('Validation Error', 'Please select a Court from the directory.');
+      return;
+    }
     setScheduleLoading(true);
     try {
       const dateFormatted = newHearingDate.toISOString().split('T')[0];
       
-      // Store location inside notes or handle location updates
-      let updatedNotes = caseData.notes || '';
-      if (locationText.trim()) {
-        updatedNotes = `${updatedNotes}\n[Courtroom/Location]: ${locationText.trim()}`.trim();
-      }
-
       const { error } = await supabase
         .from('cases')
         .update({
           next_hearing_date: dateFormatted,
-          notes: updatedNotes || null,
+          court_name: selectedCourtName,
+          courtroom: selectedCourtroom || null,
         })
         .eq('id', caseId);
 
       if (error) {
         Alert.alert('Error', error.message);
       } else {
+        // Log Activity
+        await logActivity(caseId, 'hearing_scheduled', `Hearing scheduled on ${dateFormatted} at ${selectedCourtName} - ${selectedCourtroom || 'Main Hall'}.`);
+
         await cancelPriorityAlarms(caseId);
         
         const updatedCase = {
           ...caseData,
           next_hearing_date: dateFormatted,
-          notes: updatedNotes || null,
+          court_name: selectedCourtName,
+          courtroom: selectedCourtroom || null,
         };
 
         if (caseData.is_priority) {
@@ -161,7 +228,6 @@ export default function CaseDetailScreen({ route, navigation }) {
         }
 
         setShowScheduleModal(false);
-        setLocationText('');
         fetchCaseDetails();
       }
     } catch (err) {
@@ -185,6 +251,9 @@ export default function CaseDetailScreen({ route, navigation }) {
       if (error) {
         Alert.alert('Error updating notes', error.message);
       } else {
+        // Log Activity
+        await logActivity(caseId, 'note_added', `Case notes updated.`);
+
         setShowEditNotesModal(false);
         fetchCaseDetails();
       }
@@ -209,6 +278,12 @@ export default function CaseDetailScreen({ route, navigation }) {
   const onDatePickerChange = (event, selectedDate) => {
     setShowDatePicker(false);
     if (selectedDate) {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      if (selectedDate < today) {
+        Alert.alert('Validation Error', 'Hearing date cannot be in the past.');
+        return;
+      }
       setNewHearingDate(selectedDate);
     }
   };
@@ -261,7 +336,20 @@ export default function CaseDetailScreen({ route, navigation }) {
 
           <View style={styles.infoRow}>
             <Text style={[styles.label, { color: colors.textSub }]}>Client Name</Text>
-            <Text style={[styles.value, { color: colors.text }]}>{caseData.client_name}</Text>
+            {caseData.client_id ? (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('ClientDetail', { clientId: caseData.client_id })}
+                style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.value, { color: colors.accent, fontWeight: 'bold', textDecorationLine: 'underline' }]}>
+                  {caseData.client_name}
+                </Text>
+                <Ionicons name="open-outline" size={14} color={colors.accent} style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            ) : (
+              <Text style={[styles.value, { color: colors.text }]}>{caseData.client_name}</Text>
+            )}
           </View>
 
           <View style={styles.infoRow}>
@@ -308,6 +396,61 @@ export default function CaseDetailScreen({ route, navigation }) {
               <Text style={[styles.valuePlaceholder, { color: colors.textSub }]}>No upcoming hearings scheduled</Text>
             )}
           </View>
+
+          {/* COURT DETAILS */}
+          {caseData.court_name ? (
+            <View style={{ marginTop: 14, borderTopWidth: 1, borderColor: colors.border, paddingTop: 14 }}>
+              <Text style={[styles.label, { color: colors.textSub }]}>Court Venue</Text>
+              <Text style={[styles.value, { color: colors.text, fontWeight: 'bold' }]}>{caseData.court_name}</Text>
+              {caseData.courtroom ? (
+                <Text style={[styles.value, { color: colors.textSub, marginTop: 2 }]}>🏛️ Courtroom/Hall: {caseData.courtroom}</Text>
+              ) : null}
+              
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                {courtsData.find(c => c.name === caseData.court_name)?.phone ? (
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: colors.background,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: colors.border
+                    }}
+                    onPress={() => {
+                      const courtPhone = courtsData.find(c => c.name === caseData.court_name)?.phone;
+                      if (courtPhone) Linking.openURL(`tel:${courtPhone}`);
+                    }}
+                  >
+                    <Ionicons name="call" size={14} color={colors.accent} style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 13, color: colors.accent, fontWeight: '600' }}>Call Court</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: colors.background,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: colors.border
+                  }}
+                  onPress={() => {
+                    const courtAddr = courtsData.find(c => c.name === caseData.court_name)?.address || caseData.court_name;
+                    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(courtAddr)}`);
+                  }}
+                >
+                  <Ionicons name="map" size={14} color={colors.accent} style={{ marginRight: 6 }} />
+                  <Text style={{ fontSize: 13, color: colors.accent, fontWeight: '600' }}>Directions</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
 
           {/* NOTES DISPLAY */}
           <View style={[styles.notesGroup, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -368,6 +511,64 @@ export default function CaseDetailScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* CASE TIMELINE / ACTIVITY LOG */}
+        <View style={{ marginTop: 28, marginBottom: 20 }}>
+          <Text style={[styles.sectionTitle, { color: colors.textSub, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }]}>Case Activity log</Text>
+          {activities.length > 0 ? (
+            <View style={{ paddingLeft: 12, borderLeftWidth: 2, borderColor: colors.border, marginLeft: 10, gap: 18 }}>
+              {activities.map((act) => {
+                let iconName = 'ellipse';
+                let iconColor = colors.textSub;
+                if (act.action_type === 'created') {
+                  iconName = 'add-circle';
+                  iconColor = colors.success;
+                } else if (act.action_type === 'hearing_scheduled') {
+                  iconName = 'calendar';
+                  iconColor = colors.accent;
+                } else if (act.action_type === 'note_added') {
+                  iconName = 'document-text';
+                  iconColor = '#fbbf24';
+                } else if (act.action_type === 'priority_on' || act.action_type === 'priority_off') {
+                  iconName = 'star';
+                  iconColor = colors.priorityGold;
+                } else if (act.action_type === 'closed') {
+                  iconName = 'lock-closed';
+                  iconColor = colors.danger;
+                }
+
+                return (
+                  <View key={act.id} style={{ position: 'relative' }}>
+                    {/* Left node dot */}
+                    <View style={{
+                      position: 'absolute',
+                      left: -20,
+                      top: 4,
+                      width: 14,
+                      height: 14,
+                      borderRadius: 7,
+                      backgroundColor: colors.background,
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Ionicons name={iconName} size={12} color={iconColor} />
+                    </View>
+                    
+                    <Text style={{ fontSize: 14, color: colors.text, fontWeight: '600' }}>
+                      {act.action_type.toUpperCase().replace('_', ' ')}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: colors.textSub, marginTop: 2 }}>{act.description}</Text>
+                    <Text style={{ fontSize: 11, color: colors.textSub, marginTop: 4 }}>
+                      {new Date(act.created_at).toLocaleString()}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={{ color: colors.textSub, fontStyle: 'italic', fontSize: 13 }}>No activity logged yet.</Text>
+          )}
+        </View>
       </ScrollView>
 
       {/* CLOSE CASE MODAL */}
@@ -431,16 +632,33 @@ export default function CaseDetailScreen({ route, navigation }) {
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={onDatePickerChange}
+                minimumDate={new Date()}
               />
             )}
 
-            <TextInput
-              style={[styles.modalInput, { marginTop: 16, color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
-              placeholder="Courtroom Number / Location (e.g. Court 3B)"
-              placeholderTextColor={colors.textSub}
-              value={locationText}
-              onChangeText={setLocationText}
-            />
+            {/* COURT VENUE SELECTOR */}
+            <TouchableOpacity
+              style={[styles.dateSelector, { marginTop: 16, backgroundColor: colors.background, borderColor: colors.border }]}
+              onPress={() => setShowCourtModal(true)}
+            >
+              <Ionicons name="business-outline" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
+              <Text style={[styles.dateText, { color: selectedCourtName ? colors.text : colors.textSub }]}>
+                {selectedCourtName || 'Select Court Venue...'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* COURTROOM SELECTOR */}
+            {selectedCourtName ? (
+              <TouchableOpacity
+                style={[styles.dateSelector, { marginTop: 16, backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() => setShowCourtroomModal(true)}
+              >
+                <Ionicons name="chevron-down" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
+                <Text style={[styles.dateText, { color: selectedCourtroom ? colors.text : colors.textSub }]}>
+                  {selectedCourtroom || 'Select Courtroom/Hall...'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -464,6 +682,90 @@ export default function CaseDetailScreen({ route, navigation }) {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* COURT VENUE PICKER */}
+      <Modal visible={showCourtModal} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCourtModal(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.modalHeader, { borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Court</Text>
+              <TouchableOpacity onPress={() => setShowCourtModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={courtsData}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    { borderColor: colors.border },
+                    selectedCourtName === item.name && [styles.modalItemActive, { backgroundColor: colors.background }]
+                  ]}
+                  onPress={() => {
+                    setSelectedCourtName(item.name);
+                    setSelectedCourtroom('');
+                    setShowCourtModal(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.modalItemText, selectedCourtName === item.name && styles.modalItemTextActive, { color: colors.text }]}>
+                      {item.name}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colors.textSub, marginTop: 2 }}>{item.address}</Text>
+                  </View>
+                  {selectedCourtName === item.name && <Ionicons name="checkmark" size={20} color="#38bdf8" />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* COURTROOM PICKER */}
+      <Modal visible={showCourtroomModal} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCourtroomModal(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.modalHeader, { borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Courtroom</Text>
+              <TouchableOpacity onPress={() => setShowCourtroomModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={courtsData.find(c => c.name === selectedCourtName)?.courtrooms || []}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    { borderColor: colors.border },
+                    selectedCourtroom === item && [styles.modalItemActive, { backgroundColor: colors.background }]
+                  ]}
+                  onPress={() => {
+                    setSelectedCourtroom(item);
+                    setShowCourtroomModal(false);
+                  }}
+                >
+                  <Text style={[styles.modalItemText, selectedCourtroom === item && styles.modalItemTextActive, { color: colors.text }]}>
+                    {item}
+                  </Text>
+                  {selectedCourtroom === item && <Ionicons name="checkmark" size={20} color="#38bdf8" />}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* EDIT CASE NOTES MODAL */}

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "court_001",
+    "name": "City Civil Court, Chennai",
+    "address": "High Court Road, Parry's Corner, Chennai - 600001",
+    "phone": "044-25300000",
+    "courtrooms": ["Hall 1 (Main)", "Hall 2", "Hall 3 (Fast Track)", "Chamber A"]
+  },
+  {
+    "id": "court_002",
+    "name": "District & Sessions Court, Madurai",
+    "address": "Melur Road, Madurai - 625020",
+    "phone": "0452-2531000",
+    "courtrooms": ["Sessions Hall A", "Sessions Hall B", "Family Court Hall"]
+  },
+  {
+    "id": "court_003",
+    "name": "High Court of Madras",
+    "address": "Parry's Corner, George Town, Chennai - 600001",
+    "phone": "044-25301000",
+    "courtrooms": ["Court Hall 1", "Court Hall 2", "Court Hall 3", "Court Hall 4"]
+  },
+  {
+    "id": "court_004",
+    "name": "Supreme Court of India",
+    "address": "Tilak Marg, Mandi House, New Delhi - 110001",
+    "phone": "011-23388942",
+    "courtrooms": ["Court 1 (CJI)", "Court 2", "Court 3", "Court 4", "Court 5"]
+  }
+]

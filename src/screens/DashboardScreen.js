@@ -73,16 +73,7 @@ export default function DashboardScreen({ navigation, selectView }) {
           setUserId(currentUserId);
           fetchCases(currentUserId);
 
-          // Fetch user role
-          const { data: memberData } = await supabase
-            .from('firm_members')
-            .select('role')
-            .eq('user_id', currentUserId)
-            .maybeSingle();
 
-          if (memberData?.role && active) {
-            setUserRole(memberData.role);
-          }
 
           channel = supabase
             .channel(`dashboard-cases-${currentUserId}`)

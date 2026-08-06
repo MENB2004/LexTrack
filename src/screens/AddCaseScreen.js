@@ -44,29 +44,13 @@ export default function AddCaseScreen({ navigation, selectView }) {
   const [courtroom, setCourtroom] = useState('');
   const [showCourtModal, setShowCourtModal] = useState(false);
   const [showCourtroomModal, setShowCourtroomModal] = useState(false);
-
-  // User role check state
-  const [isParalegal, setIsParalegal] = useState(false);
+  // User role check state - always owner/full access
+  const isParalegal = false;
 
   useEffect(() => {
     let active = true;
     const fetchRoleAndClients = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id || supabase.auth.currentUser?.id;
-        if (!userId) return;
-
-        // Fetch user role
-        const { data: memberData } = await supabase
-          .from('firm_members')
-          .select('role')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (memberData?.role === 'paralegal' && active) {
-          setIsParalegal(true);
-        }
-
         // Fetch clients list
         const { data: clientsData } = await supabase
           .from('clients')
@@ -146,20 +130,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
         return;
       }
 
-      // Role check: paralegals cannot register new cases
-      const { data: memberData } = await supabase
-        .from('firm_members')
-        .select('role, firm_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (memberData?.role === 'paralegal') {
-        Alert.alert('Permission Denied', 'Paralegals are not authorized to register new cases.');
-        setLoading(false);
-        return;
-      }
-
-      const firmId = memberData?.firm_id || null;
+      const firmId = null;
 
       // Check for case number uniqueness
       const { data: existingCases, error: checkError } = await supabase

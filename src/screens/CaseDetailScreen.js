@@ -53,8 +53,8 @@ export default function CaseDetailScreen({ route, navigation }) {
   const [showCourtModal, setShowCourtModal] = useState(false);
   const [showCourtroomModal, setShowCourtroomModal] = useState(false);
 
-  // User permission role state
-  const [userRole, setUserRole] = useState('owner');
+  // User permission role state - always owner/full access
+  const userRole = 'owner';
 
   const fetchCaseDetails = async () => {
     try {
@@ -79,19 +79,7 @@ export default function CaseDetailScreen({ route, navigation }) {
           setSelectedCourtroom(data.courtroom);
         }
 
-        // Fetch User's Role in firm
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id || supabase.auth.currentUser?.id;
-        if (userId) {
-          const { data: memberData } = await supabase
-            .from('firm_members')
-            .select('role')
-            .eq('user_id', userId)
-            .maybeSingle();
-          if (memberData?.role) {
-            setUserRole(memberData.role);
-          }
-        }
+
 
         // Fetch activities log
         const { data: actData } = await supabase
@@ -116,10 +104,6 @@ export default function CaseDetailScreen({ route, navigation }) {
 
   const togglePriority = async () => {
     if (!caseData) return;
-    if (userRole === 'paralegal') {
-      Alert.alert('Permission Denied', 'Paralegals are not authorized to toggle case priority.');
-      return;
-    }
     const nextPriority = !caseData.is_priority;
     try {
       const { error } = await supabase
@@ -151,10 +135,6 @@ export default function CaseDetailScreen({ route, navigation }) {
   };
 
   const handleCloseCase = async () => {
-    if (userRole === 'paralegal' || userRole === 'associate') {
-      Alert.alert('Permission Denied', 'Only firm owners/partners can close case folders.');
-      return;
-    }
     setCloseLoading(true);
     try {
       const { error } = await supabase
@@ -184,11 +164,53 @@ export default function CaseDetailScreen({ route, navigation }) {
     }
   };
 
+  const handleDeleteCase = async () => {
+    Alert.alert(
+      'Delete Case',
+      'Are you sure you want to permanently delete this case record? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('cases')
+                .delete()
+                .eq('id', caseId);
+
+              if (error) {
+                Alert.alert('Error', error.message);
+              } else {
+                // Cancel priority alarms
+                await cancelPriorityAlarms(caseId);
+
+                // Show success notification
+                Alert.alert(
+                  'Case Deleted',
+                  'The case has been permanently deleted.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        navigation.goBack();
+                      },
+                    },
+                  ]
+                );
+              }
+            } catch (err) {
+              console.error(err);
+              Alert.alert('Error', 'An unexpected error occurred during deletion.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleScheduleHearing = async () => {
-    if (userRole === 'paralegal') {
-      Alert.alert('Permission Denied', 'Paralegals are not authorized to schedule court hearings.');
-      return;
-    }
     if (!selectedCourtName) {
       Alert.alert('Validation Error', 'Please select a Court from the directory.');
       return;
@@ -288,7 +310,7 @@ export default function CaseDetailScreen({ route, navigation }) {
     }
   };
 
-  if (loading) {
+  if (loading || !caseData) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#38bdf8" />
@@ -492,25 +514,37 @@ export default function CaseDetailScreen({ route, navigation }) {
         </View>
 
         {/* BOTTOM ACTION BUTTONS */}
-        {caseData.status === 'Active' && (
-          <View style={styles.actionContainer}>
-            <TouchableOpacity
-              style={[styles.scheduleButton, { backgroundColor: colors.accent }]}
-              onPress={() => setShowScheduleModal(true)}
-            >
-              <Ionicons name="calendar" size={20} color="#ffffff" style={{ marginRight: 8 }} />
-              <Text style={styles.scheduleButtonText}>Schedule Hearing</Text>
-            </TouchableOpacity>
+        <View style={styles.actionContainer}>
+          {caseData.status === 'Active' && (
+            <>
+              <TouchableOpacity
+                style={[styles.scheduleButton, { backgroundColor: colors.accent }]}
+                onPress={() => setShowScheduleModal(true)}
+              >
+                <Ionicons name="calendar" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                <Text style={styles.scheduleButtonText}>Schedule Hearing</Text>
+              </TouchableOpacity>
 
+              <TouchableOpacity
+                style={[styles.closeButton, { borderColor: colors.danger, backgroundColor: 'transparent', borderWidth: 1 }]}
+                onPress={() => setShowCloseModal(true)}
+              >
+                <Ionicons name="lock-closed" size={20} color={colors.danger} style={{ marginRight: 8 }} />
+                <Text style={[styles.closeButtonText, { color: colors.danger }]}>Close Case</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {userRole === 'owner' && (
             <TouchableOpacity
-              style={[styles.closeButton, { borderColor: colors.danger, backgroundColor: 'transparent', borderWidth: 1 }]}
-              onPress={() => setShowCloseModal(true)}
+              style={[styles.deleteButton, { borderColor: colors.danger, backgroundColor: 'transparent', borderWidth: 1 }]}
+              onPress={handleDeleteCase}
             >
-              <Ionicons name="lock-closed" size={20} color={colors.danger} style={{ marginRight: 8 }} />
-              <Text style={[styles.closeButtonText, { color: colors.danger }]}>Close Case</Text>
+              <Ionicons name="trash-outline" size={20} color={colors.danger} style={{ marginRight: 8 }} />
+              <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Delete Case Record</Text>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
 
         {/* CASE TIMELINE / ACTIVITY LOG */}
         <View style={{ marginTop: 28, marginBottom: 20 }}>
@@ -1095,6 +1129,17 @@ const styles = StyleSheet.create({
   confirmSaveText: {
     color: '#ffffff',
     fontSize: 15,
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    borderRadius: 10,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

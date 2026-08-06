@@ -33,29 +33,7 @@ export default function MainScreen({ navigation }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const [userRole, setUserRole] = useState('owner');
-
-  useEffect(() => {
-    const fetchRole = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id || supabase.auth.currentUser?.id;
-        if (userId) {
-          const { data } = await supabase
-            .from('firm_members')
-            .select('role')
-            .eq('user_id', userId)
-            .maybeSingle();
-          if (data?.role) {
-            setUserRole(data.role);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchRole();
-  }, []);
+  const userRole = 'owner';
 
   useEffect(() => {
     const backAction = () => {
@@ -146,7 +124,7 @@ export default function MainScreen({ navigation }) {
   const menuItems = [
     { name: 'Dashboard', label: 'Cases Dashboard', icon: 'folder-open-outline', activeIcon: 'folder-open' },
     { name: 'Calendar', label: 'Hearing Calendar', icon: 'calendar-outline', activeIcon: 'calendar' },
-    ...(userRole !== 'paralegal' ? [{ name: 'AddCase', label: 'Register New Case', icon: 'add-circle-outline', activeIcon: 'add-circle' }] : []),
+    { name: 'AddCase', label: 'Register New Case', icon: 'add-circle-outline', activeIcon: 'add-circle' },
     { name: 'Clients', label: 'Client Directory', icon: 'people-outline', activeIcon: 'people' },
     { name: 'Analytics', label: 'Caseload Analytics', icon: 'bar-chart-outline', activeIcon: 'bar-chart' },
     { name: 'Settings', label: 'Settings & Profiles', icon: 'settings-outline', activeIcon: 'settings' },

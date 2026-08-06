@@ -39,60 +39,6 @@ export default function SettingsScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
-  // Team Collaboration states
-  const [firm, setFirm] = useState(null);
-  const [firmRole, setFirmRole] = useState('');
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [firmLoading, setFirmLoading] = useState(true);
-
-  // Create Firm Modal states
-  const [showFirmModal, setShowFirmModal] = useState(false);
-  const [firmName, setFirmName] = useState('');
-  const [createFirmLoading, setCreateFirmLoading] = useState(false);
-
-  // Invite Member states
-  const [colleagueEmail, setColleagueEmail] = useState('');
-  const [colleagueRole, setColleagueRole] = useState('associate');
-  const [inviteLoading, setInviteLoading] = useState(false);
-
-  const loadFirmDetails = async () => {
-    setFirmLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id || supabase.auth.currentUser?.id;
-      if (!userId) return;
-
-      const { data: memberData } = await supabase
-        .from('firm_members')
-        .select('*, firms(*)')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (memberData) {
-        setFirm(memberData.firms);
-        setFirmRole(memberData.role);
-        
-        // Fetch other members
-        const { data: members } = await supabase
-          .from('firm_members')
-          .select('*, profiles(id, full_name)')
-          .eq('firm_id', memberData.firm_id);
-        
-        if (members) {
-          setTeamMembers(members);
-        }
-      } else {
-        setFirm(null);
-        setFirmRole('');
-        setTeamMembers([]);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setFirmLoading(false);
-    }
-  };
-
   // Load preferences and user profile on mount
   useEffect(() => {
     AsyncStorage.getItem('notif_digest').then((v) => {
@@ -140,7 +86,6 @@ export default function SettingsScreen() {
     };
 
     loadProfile();
-    loadFirmDetails();
     return () => {
       active = false;
     };
@@ -230,105 +175,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleCreateFirm = async () => {
-    if (!firmName.trim()) {
-      Alert.alert('Validation Error', 'Firm Name is required.');
-      return;
-    }
-    setCreateFirmLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id || supabase.auth.currentUser?.id;
-      if (!userId) return;
 
-      const { data: newFirm, error: firmError } = await supabase
-        .from('firms')
-        .insert({
-          name: firmName.trim(),
-          created_by: userId
-        })
-        .select()
-        .single();
-
-      if (firmError) {
-        Alert.alert('Error creating firm', firmError.message);
-      } else {
-        const { error: memberError } = await supabase
-          .from('firm_members')
-          .insert({
-            firm_id: newFirm.id,
-            user_id: userId,
-            role: 'owner'
-          });
-
-        if (memberError) {
-          Alert.alert('Error linking owner role', memberError.message);
-        } else {
-          setFirmName('');
-          setShowFirmModal(false);
-          Alert.alert('Success', `Welcome to ${newFirm.name}!`);
-          loadFirmDetails();
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'An unexpected error occurred.');
-    } finally {
-      setCreateFirmLoading(false);
-    }
-  };
-
-  const handleInviteColleague = async () => {
-    if (!colleagueEmail.trim()) {
-      Alert.alert('Validation Error', 'Please enter colleague\'s email.');
-      return;
-    }
-    if (firmRole !== 'owner') {
-      Alert.alert('Permission Denied', 'Only the firm owner can invite colleagues.');
-      return;
-    }
-    setInviteLoading(true);
-    try {
-      const { data: targetProfile, error: profileErr } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('email', colleagueEmail.trim().toLowerCase())
-        .maybeSingle();
-
-      if (profileErr) {
-        Alert.alert('Error looking up profile', profileErr.message);
-        setInviteLoading(false);
-        return;
-      }
-
-      if (!targetProfile) {
-        Alert.alert('User Not Found', 'No lawyer profile found with that email address. Ask your colleague to sign up first.');
-        setInviteLoading(false);
-        return;
-      }
-
-      const { error: memberErr } = await supabase
-        .from('firm_members')
-        .insert({
-          firm_id: firm.id,
-          user_id: targetProfile.id,
-          role: colleagueRole,
-        });
-
-      if (memberErr) {
-        Alert.alert('Error inviting colleague', 'This colleague might already belong to a firm, or has already been added.');
-      } else {
-        setColleagueEmail('');
-        Alert.alert('Success', `${targetProfile.full_name || colleagueEmail} has been added to the firm.`);
-        loadFirmDetails();
-      }
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'An unexpected error occurred.');
-    } finally {
-      setInviteLoading(false);
-    }
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -381,109 +228,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* TEAM / LAW FIRM CARD */}
-        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textSub }]}>Firm & Teammates</Text>
-          {firmLoading ? (
-            <ActivityIndicator size="small" color={colors.accent} style={{ padding: 20 }} />
-          ) : firm ? (
-            <View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <View>
-                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text }}>{firm.name}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                    <Ionicons name="shield-checkmark" size={14} color={colors.accent} style={{ marginRight: 4 }} />
-                    <Text style={{ fontSize: 13, color: colors.accent, fontWeight: 'bold', textTransform: 'uppercase' }}>
-                      {firmRole}
-                    </Text>
-                  </View>
-                </View>
-              </View>
 
-              {/* Teammates List */}
-              <Text style={{ fontSize: 11, fontWeight: 'bold', color: colors.textSub, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 8, marginBottom: 8 }}>
-                Teammates ({teamMembers.length})
-              </Text>
-              
-              <View style={{ gap: 8, marginBottom: 16 }}>
-                {teamMembers.map(member => (
-                  <View key={member.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderColor: 'rgba(51,65,85,0.2)' }}>
-                    <Text style={{ color: colors.text, fontSize: 14 }}>
-                      {member.profiles?.full_name || 'Anonymous Teammate'}
-                    </Text>
-                    <View style={{ backgroundColor: colors.background, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
-                      <Text style={{ color: colors.textSub, fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' }}>
-                        {member.role}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-
-              {/* Owner Actions - Invite colleague */}
-              {firmRole === 'owner' && (
-                <View style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 14 }}>
-                  <Text style={{ fontSize: 13, color: colors.textSub, fontWeight: '600', marginBottom: 8 }}>Invite Colleague</Text>
-                  <TextInput
-                    style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border, marginBottom: 8, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }]}
-                    placeholder="Enter Colleague Email Address..."
-                    placeholderTextColor={colors.textSub}
-                    value={colleagueEmail}
-                    onChangeText={setColleagueEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                  />
-                  
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-                    {['associate', 'paralegal'].map(role => (
-                      <TouchableOpacity
-                        key={role}
-                        style={{
-                          flex: 1,
-                          paddingVertical: 6,
-                          alignItems: 'center',
-                          borderRadius: 6,
-                          borderWidth: 1,
-                          borderColor: colleagueRole === role ? colors.accent : colors.border,
-                          backgroundColor: colleagueRole === role ? 'rgba(56, 189, 248, 0.1)' : 'transparent',
-                        }}
-                        onPress={() => setColleagueRole(role)}
-                      >
-                        <Text style={{ color: colleagueRole === role ? colors.accent : colors.textSub, fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase' }}>
-                          {role}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <TouchableOpacity
-                    style={{ backgroundColor: colors.accent, paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
-                    onPress={handleInviteColleague}
-                    disabled={inviteLoading}
-                  >
-                    {inviteLoading ? (
-                      <ActivityIndicator color="#ffffff" />
-                    ) : (
-                      <Text style={{ color: '#ffffff', fontWeight: 'bold' }}>Send Invitation</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={{ paddingVertical: 10 }}>
-              <Text style={{ color: colors.textSub, fontSize: 13, lineHeight: 18, marginBottom: 12 }}>
-                You are currently operating as Independent Counsel. Create a Law Firm to collaborate and share cases and clients with associates or paralegals.
-              </Text>
-              <TouchableOpacity
-                style={{ backgroundColor: colors.accent, paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
-                onPress={() => setShowFirmModal(true)}
-              >
-                <Text style={{ color: '#ffffff', fontWeight: 'bold' }}>Create Law Firm</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
 
         {/* PREFERENCES CARD */}
         <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -640,47 +385,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* CREATE FIRM MODAL */}
-      <Modal visible={showFirmModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Create Law Firm</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>Start a shared workspace for your firm's cases and clients.</Text>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSub }]}>Firm Name *</Text>
-              <TextInput
-                style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
-                placeholder="e.g. Pearson Hardman LLC"
-                placeholderTextColor={colors.textSub}
-                value={firmName}
-                onChangeText={setFirmName}
-              />
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.cancelBtn, { borderColor: colors.border }]}
-                onPress={() => setShowFirmModal(false)}
-                disabled={createFirmLoading}
-              >
-                <Text style={[styles.cancelBtnText, { color: colors.textSub }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmSaveBtn, { backgroundColor: colors.accent }]}
-                onPress={handleCreateFirm}
-                disabled={createFirmLoading}
-              >
-                {createFirmLoading ? (
-                  <ActivityIndicator color="#ffffff" />
-                ) : (
-                  <Text style={styles.confirmSaveText}>Create Firm</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

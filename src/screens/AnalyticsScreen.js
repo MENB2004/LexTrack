@@ -44,25 +44,11 @@ export default function AnalyticsScreen() {
 
       const todayStr = new Date().toISOString().split('T')[0];
 
-      // Fetch user's firm membership
-      const { data: memberData } = await supabase
-        .from('firm_members')
-        .select('firm_id')
-        .eq('user_id', currentUserId)
-        .maybeSingle();
-
-      const firmId = memberData?.firm_id;
-
       // 1. Fetch all cases for the stats calculations
       let statsQuery = supabase
         .from('cases')
-        .select('status, is_priority, next_hearing_date, date_filed');
-
-      if (firmId) {
-        statsQuery = statsQuery.or(`user_id.eq.${currentUserId},firm_id.eq.${firmId}`);
-      } else {
-        statsQuery = statsQuery.eq('user_id', currentUserId);
-      }
+        .select('status, is_priority, next_hearing_date, date_filed')
+        .eq('user_id', currentUserId);
 
       const { data: allCases, error: statsError } = await statsQuery;
       if (statsError) throw statsError;
@@ -85,13 +71,8 @@ export default function AnalyticsScreen() {
         .eq('status', 'Active')
         .gte('next_hearing_date', todayStr)
         .order('next_hearing_date', { ascending: true })
-        .limit(5);
-
-      if (firmId) {
-        hearingsQuery = hearingsQuery.or(`user_id.eq.${currentUserId},firm_id.eq.${firmId}`);
-      } else {
-        hearingsQuery = hearingsQuery.eq('user_id', currentUserId);
-      }
+        .limit(5)
+        .eq('user_id', currentUserId);
 
       const { data: nextHearings, error: listError } = await hearingsQuery;
 

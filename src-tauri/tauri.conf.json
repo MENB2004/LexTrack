@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:8081",
-    "beforeDevCommand": "npx expo start --web",
+    "beforeDevCommand": "set EXPO_NO_TELEMETRY=1&&set EXPO_NO_CACHE=1&&npx expo start --web",
     "beforeBuildCommand": "npx expo export --platform web"
   },
   "app": {

@@ -12,4 +12,14 @@ config.cacheStores = [
   }),
 ];
 
+// Ignore src-tauri folder to prevent watching rust compilation artifacts
+const tauriIgnorePattern = /src-tauri[\/\\].*/;
+if (Array.isArray(config.resolver.blockList)) {
+  config.resolver.blockList.push(tauriIgnorePattern);
+} else if (config.resolver.blockList) {
+  config.resolver.blockList = [config.resolver.blockList, tauriIgnorePattern];
+} else {
+  config.resolver.blockList = [tauriIgnorePattern];
+}
+
 module.exports = config;

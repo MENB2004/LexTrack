@@ -11,6 +11,9 @@ import {
   Alert,
   StatusBar,
   Linking,
+  useWindowDimensions,
+  Platform,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -19,6 +22,8 @@ import { useTheme } from '../context/ThemeContext';
 
 export default function ClientDetailScreen({ route, navigation }) {
   const { colors, isDark } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const { clientId } = route.params;
   const [client, setClient] = useState(null);
   const [cases, setCases] = useState([]);
@@ -207,7 +212,7 @@ export default function ClientDetailScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && { maxWidth: 800, width: '100%', alignSelf: 'center' }]}>
         {/* CARD WRAPPER */}
         <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
@@ -305,13 +310,18 @@ export default function ClientDetailScreen({ route, navigation }) {
         )}
 
         {/* DANGER AREA */}
-        <TouchableOpacity
-          style={[styles.deleteButton, { borderColor: colors.danger }]}
+        <Pressable
+          style={({ hovered, pressed }) => [
+            styles.deleteButton,
+            { borderColor: colors.danger },
+            hovered && { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)' },
+            pressed && { opacity: 0.8 }
+          ]}
           onPress={handleDeleteClient}
         >
           <Ionicons name="trash-outline" size={20} color={colors.danger} style={{ marginRight: 8 }} />
           <Text style={[styles.deleteText, { color: colors.danger }]}>Delete Client Record</Text>
-        </TouchableOpacity>
+        </Pressable>
       </ScrollView>
 
       {/* EDIT MODAL */}
@@ -384,24 +394,40 @@ export default function ClientDetailScreen({ route, navigation }) {
               </View>
 
               <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.cancelBtn, { borderColor: colors.border }]}
+                <Pressable
+                  style={({ hovered, pressed }) => [
+                    styles.cancelBtn,
+                    { borderColor: colors.border },
+                    hovered && { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' },
+                    pressed && { opacity: 0.7 }
+                  ]}
                   onPress={() => setShowEditModal(false)}
                   disabled={editLoading}
                 >
                   <Text style={[styles.cancelBtnText, { color: colors.textSub }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.saveBtn, { backgroundColor: colors.accent }]}
+                </Pressable>
+                <Pressable
+                  style={({ hovered, pressed }) => [
+                    styles.saveBtn,
+                    { backgroundColor: colors.accent },
+                    hovered && {
+                      transform: [{ translateY: -2 }],
+                      shadowColor: colors.accent,
+                      shadowOpacity: 0.2,
+                      shadowRadius: 6,
+                      shadowOffset: { width: 0, height: 3 },
+                    },
+                    pressed && { opacity: 0.8 }
+                  ]}
                   onPress={handleUpdateClient}
                   disabled={editLoading}
                 >
                   {editLoading ? (
                     <ActivityIndicator color="#ffffff" />
                   ) : (
-                    <Text style={styles.saveBtnText}>Save</Text>
+                    <Text style={styles.saveBtnText}>Save Changes</Text>
                   )}
-                </TouchableOpacity>
+                </Pressable>
               </View>
             </ScrollView>
           </View>
@@ -554,6 +580,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 20,
     marginBottom: 40,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   deleteText: {
     fontSize: 15,
@@ -605,6 +633,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 8,
+    borderWidth: 1,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   cancelBtnText: {
     fontSize: 15,
@@ -616,6 +647,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     minWidth: 100,
     alignItems: 'center',
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   saveBtnText: {
     color: '#ffffff',

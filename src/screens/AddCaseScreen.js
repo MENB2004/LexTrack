@@ -7,13 +7,17 @@ import {
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
+  SafeAreaProvider,
   Platform,
   ActivityIndicator,
   Modal,
   FlatList,
   Alert,
+  useWindowDimensions,
+  Pressable,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import WebDatePicker from '../components/WebDatePicker';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { schedulePriorityAlarms, scheduleRegularAlarms } from '../utils/alarms';
@@ -25,6 +29,8 @@ const CASE_TYPES = ['Civil', 'Criminal', 'Family', 'Corporate'];
 
 export default function AddCaseScreen({ navigation, selectView }) {
   const { isDark, colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const [caseNumber, setCaseNumber] = useState('');
   const [clientName, setClientName] = useState('');
   const [caseType, setCaseType] = useState('Civil');
@@ -239,7 +245,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.scrollContainer, isDesktop && { maxWidth: 800, width: '100%', alignSelf: 'center' }]} keyboardShouldPersistTaps="handled">
         {errorMsg ? (
           <View style={styles.errorBanner}>
             <Text style={styles.errorText}>{errorMsg}</Text>
@@ -322,38 +328,21 @@ export default function AddCaseScreen({ navigation, selectView }) {
 
           {/* DATE FILED */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSub }]}>Date Filed *</Text>
+            <Text style={[styles.label, { color: colors.textSub }]}>Date Filed</Text>
             {Platform.OS === 'web' ? (
-              <View style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
-                <input
-                  type="date"
-                  value={dateFiled.toISOString().split('T')[0]}
-                  max={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => {
-                    const selected = new Date(e.target.value + 'T00:00:00');
-                    if (!isNaN(selected.getTime())) {
-                      if (selected > new Date()) {
-                        setErrorMsg('Date Filed cannot be in the future.');
-                        return;
-                      }
-                      setDateFiled(selected);
-                      setErrorMsg('');
+              <WebDatePicker
+                value={dateFiled}
+                onChange={(selected) => {
+                  if (selected) {
+                    if (selected > new Date()) {
+                      Alert.alert('Validation Error', 'Date Filed cannot be in the future.');
+                      return;
                     }
-                  }}
-                  disabled={loading}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: isDark ? '#f8fafc' : '#0f172a',
-                    fontSize: 15,
-                    flex: 1,
-                    outline: 'none',
-                    fontFamily: 'inherit',
-                    cursor: 'pointer',
-                  }}
-                />
-              </View>
+                    setDateFiled(selected);
+                  }
+                }}
+                maximumDate={new Date()}
+              />
             ) : (
               <>
                 <TouchableOpacity
@@ -381,50 +370,22 @@ export default function AddCaseScreen({ navigation, selectView }) {
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.textSub }]}>Next Hearing Date (Optional)</Text>
             {Platform.OS === 'web' ? (
-              <View style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
-                <input
-                  type="date"
-                  value={nextHearingDate ? nextHearingDate.toISOString().split('T')[0] : ''}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      const selected = new Date(e.target.value + 'T00:00:00');
-                      if (!isNaN(selected.getTime())) {
-                        const today = new Date();
-                        today.setHours(0,0,0,0);
-                        if (selected < today) {
-                          Alert.alert('Validation Error', 'Next Hearing Date cannot be in the past.');
-                          return;
-                        }
-                        setNextHearingDate(selected);
-                      }
-                    } else {
-                      setNextHearingDate(null);
+              <WebDatePicker
+                value={nextHearingDate}
+                onChange={(selected) => {
+                  if (selected) {
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    if (selected < today) {
+                      Alert.alert('Validation Error', 'Next Hearing Date cannot be in the past.');
+                      return;
                     }
-                  }}
-                  disabled={loading}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: nextHearingDate ? (isDark ? '#f8fafc' : '#0f172a') : (isDark ? '#64748b' : '#94a3b8'),
-                    fontSize: 15,
-                    flex: 1,
-                    outline: 'none',
-                    fontFamily: 'inherit',
-                    cursor: 'pointer',
-                  }}
-                />
-                {nextHearingDate && (
-                  <TouchableOpacity
-                    onPress={() => setNextHearingDate(null)}
-                    style={styles.clearDate}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="close-circle" size={18} color={colors.danger} />
-                  </TouchableOpacity>
-                )}
-              </View>
+                  }
+                  setNextHearingDate(selected);
+                }}
+                minimumDate={new Date()}
+                placeholder="Set hearing date..."
+              />
             ) : (
               <>
                 <TouchableOpacity
@@ -496,18 +457,28 @@ export default function AddCaseScreen({ navigation, selectView }) {
           </View>
 
           {/* SAVE BUTTON */}
-          <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: colors.accent }]}
+          <Pressable
+            style={({ hovered, pressed }) => [
+              styles.saveButton,
+              { backgroundColor: colors.accent },
+              hovered && {
+                transform: [{ translateY: -2 }],
+                shadowColor: colors.accent,
+                shadowOpacity: 0.2,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 3 },
+              },
+              pressed && { opacity: 0.8 }
+            ]}
             onPress={handleSave}
             disabled={loading}
-            activeOpacity={0.8}
           >
             {loading ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
               <Text style={styles.saveButtonText}>Register Case</Text>
             )}
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -862,6 +833,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   saveButtonText: {
     color: '#ffffff',

@@ -1,6 +1,10 @@
 import { Platform } from 'react-native';
+import { showNotification } from '../services/notifications';
 
 const Notifications = Platform.OS !== 'web' ? require('expo-notifications') : null;
+
+// Keep track of active setTimeout alarm IDs for web/desktop to enable cancellation
+const activeWebAlarms = new Map(); // caseId -> array of timeout IDs
 
 /**
  * Helper to calculate alarm trigger times.
@@ -23,56 +27,99 @@ function getTriggerDate(hearingDate, offsetDays = 0, offsetHours = 8) {
  * @param {Object} caseData - The case database object
  */
 export async function schedulePriorityAlarms(caseData) {
-  if (Platform.OS === 'web' || !caseData.next_hearing_date) return;
+  if (!caseData.next_hearing_date) return;
 
-  try {
-    const hearing = new Date(caseData.next_hearing_date);
-    const today = new Date();
+  // Cancel any existing alarms first (both web and mobile)
+  await cancelPriorityAlarms(caseData.id);
 
-    const alerts = [
-      {
-        id: `priority-2day-${caseData.id}`,
-        title: '⚠️ PRIORITY CASE — 2 Days to Hearing',
-        body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
-        triggerDate: getTriggerDate(caseData.next_hearing_date, -2, 8),
-        priority: Notifications.AndroidNotificationPriority.MAX,
-      },
-      {
-        id: `priority-1day-${caseData.id}`,
-        title: '🔔 PRIORITY CASE — Hearing Tomorrow',
-        body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
-        triggerDate: getTriggerDate(caseData.next_hearing_date, -1, 8),
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-      },
-      {
-        id: `priority-2hour-${caseData.id}`,
-        // 2 hours before hearing (defaults to 10:00 AM of the hearing date for placeholder times)
-        title: '⏰ PRIORITY CASE — Hearing in 2 Hours',
-        body: `${caseData.case_number} | Client: ${caseData.client_name} - Prepare case file.`,
-        triggerDate: getTriggerDate(caseData.next_hearing_date, 0, 9), // 9:00 AM (assuming standard 11 AM court start)
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-      },
-    ];
+  if (Platform.OS === 'web') {
+    try {
+      const hearing = new Date(caseData.next_hearing_date);
+      const timeouts = [];
 
-    for (const alert of alerts) {
-      // Only schedule if the trigger time is in the future
-      if (alert.triggerDate > today) {
-        await Notifications.scheduleNotificationAsync({
-          identifier: alert.id,
-          content: {
-            title: alert.title,
-            body: alert.body,
-            data: { caseId: caseData.id },
-            sound: 'default',
-            priority: alert.priority,
-          },
-          trigger: { date: alert.triggerDate },
-        });
+      const alerts = [
+        {
+          title: '⚠️ PRIORITY CASE — 2 Days to Hearing',
+          body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, -2, 8),
+        },
+        {
+          title: '🔔 PRIORITY CASE — Hearing Tomorrow',
+          body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, -1, 8),
+        },
+        {
+          title: '⏰ PRIORITY CASE — Hearing in 2 Hours',
+          body: `${caseData.case_number} | Client: ${caseData.client_name} - Prepare case file.`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, 0, 9),
+        },
+      ];
+
+      for (const alert of alerts) {
+        const delay = alert.triggerDate.getTime() - Date.now();
+        if (delay > 0) {
+          const timeoutId = setTimeout(() => {
+            showNotification(alert.title, alert.body);
+          }, delay);
+          timeouts.push(timeoutId);
+        }
       }
+
+      if (timeouts.length > 0) {
+        activeWebAlarms.set(caseData.id, timeouts);
+      }
+      console.log(`Web priority alarms registered successfully for Case ID: ${caseData.id}`);
+    } catch (error) {
+      console.error('Error scheduling priority alarms on Web:', error);
     }
-    console.log(`Priority alarms registered successfully for Case ID: ${caseData.id}`);
-  } catch (error) {
-    console.error('Error scheduling priority alarms:', error);
+  } else {
+    try {
+      const hearing = new Date(caseData.next_hearing_date);
+      const today = new Date();
+
+      const alerts = [
+        {
+          id: `priority-2day-${caseData.id}`,
+          title: '⚠️ PRIORITY CASE — 2 Days to Hearing',
+          body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, -2, 8),
+          priority: Notifications.AndroidNotificationPriority.MAX,
+        },
+        {
+          id: `priority-1day-${caseData.id}`,
+          title: '🔔 PRIORITY CASE — Hearing Tomorrow',
+          body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, -1, 8),
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        {
+          id: `priority-2hour-${caseData.id}`,
+          title: '⏰ PRIORITY CASE — Hearing in 2 Hours',
+          body: `${caseData.case_number} | Client: ${caseData.client_name} - Prepare case file.`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, 0, 9),
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+      ];
+
+      for (const alert of alerts) {
+        if (alert.triggerDate > today) {
+          await Notifications.scheduleNotificationAsync({
+            identifier: alert.id,
+            content: {
+              title: alert.title,
+              body: alert.body,
+              data: { caseId: caseData.id },
+              sound: 'default',
+              priority: alert.priority,
+            },
+            trigger: { date: alert.triggerDate },
+          });
+        }
+      }
+      console.log(`Priority alarms registered successfully for Case ID: ${caseData.id}`);
+    } catch (error) {
+      console.error('Error scheduling priority alarms:', error);
+    }
   }
 }
 
@@ -81,7 +128,15 @@ export async function schedulePriorityAlarms(caseData) {
  * @param {string} caseId - The case ID
  */
 export async function cancelPriorityAlarms(caseId) {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') {
+    const timeouts = activeWebAlarms.get(caseId);
+    if (timeouts) {
+      timeouts.forEach(id => clearTimeout(id));
+      activeWebAlarms.delete(caseId);
+      console.log(`Web scheduled alarms cleared successfully for Case ID: ${caseId}`);
+    }
+    return;
+  }
 
   try {
     const alertIds = [
@@ -107,43 +162,84 @@ export async function cancelPriorityAlarms(caseId) {
  * @param {Object} caseData - The case database object
  */
 export async function scheduleRegularAlarms(caseData) {
-  if (Platform.OS === 'web' || !caseData.next_hearing_date) return;
+  if (!caseData.next_hearing_date) return;
 
-  try {
-    const hearing = new Date(caseData.next_hearing_date);
-    const today = new Date();
+  // Cancel any existing alarms first
+  await cancelPriorityAlarms(caseData.id);
 
-    const alerts = [
-      {
-        id: `regular-1day-${caseData.id}`,
-        title: '📅 Case Hearing Tomorrow',
-        body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
-        triggerDate: getTriggerDate(caseData.next_hearing_date, -1, 9),
-      },
-      {
-        id: `regular-1hour-${caseData.id}`,
-        title: '⏰ Case Hearing in 1 Hour',
-        body: `${caseData.case_number} | Client: ${caseData.client_name}`,
-        triggerDate: getTriggerDate(caseData.next_hearing_date, 0, 10), // Assuming standard 11 AM court start
-      },
-    ];
+  if (Platform.OS === 'web') {
+    try {
+      const hearing = new Date(caseData.next_hearing_date);
+      const timeouts = [];
 
-    for (const alert of alerts) {
-      if (alert.triggerDate > today) {
-        await Notifications.scheduleNotificationAsync({
-          identifier: alert.id,
-          content: {
-            title: alert.title,
-            body: alert.body,
-            data: { caseId: caseData.id },
-            sound: 'default',
-            priority: Notifications.AndroidNotificationPriority.DEFAULT,
-          },
-          trigger: { date: alert.triggerDate },
-        });
+      const alerts = [
+        {
+          title: '📅 Case Hearing Tomorrow',
+          body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, -1, 9),
+        },
+        {
+          title: '⏰ Case Hearing in 1 Hour',
+          body: `${caseData.case_number} | Client: ${caseData.client_name}`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, 0, 10),
+        },
+      ];
+
+      for (const alert of alerts) {
+        const delay = alert.triggerDate.getTime() - Date.now();
+        if (delay > 0) {
+          const timeoutId = setTimeout(() => {
+            showNotification(alert.title, alert.body);
+          }, delay);
+          timeouts.push(timeoutId);
+        }
       }
+
+      if (timeouts.length > 0) {
+        activeWebAlarms.set(caseData.id, timeouts);
+      }
+      console.log(`Web regular alarms registered successfully for Case ID: ${caseData.id}`);
+    } catch (error) {
+      console.error('Error scheduling regular alarms on Web:', error);
     }
-  } catch (error) {
-    console.error('Error scheduling regular alarms:', error);
+  } else {
+    try {
+      const hearing = new Date(caseData.next_hearing_date);
+      const today = new Date();
+
+      const alerts = [
+        {
+          id: `regular-1day-${caseData.id}`,
+          title: '📅 Case Hearing Tomorrow',
+          body: `${caseData.case_number} | Client: ${caseData.client_name}\nHearing scheduled on ${hearing.toLocaleDateString()}`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, -1, 9),
+        },
+        {
+          id: `regular-1hour-${caseData.id}`,
+          title: '⏰ Case Hearing in 1 Hour',
+          body: `${caseData.case_number} | Client: ${caseData.client_name}`,
+          triggerDate: getTriggerDate(caseData.next_hearing_date, 0, 10),
+        },
+      ];
+
+      for (const alert of alerts) {
+        if (alert.triggerDate > today) {
+          await Notifications.scheduleNotificationAsync({
+            identifier: alert.id,
+            content: {
+              title: alert.title,
+              body: alert.body,
+              data: { caseId: caseData.id },
+              sound: 'default',
+              priority: Notifications.AndroidNotificationPriority.DEFAULT,
+            },
+            trigger: { date: alert.triggerDate },
+          });
+        }
+      }
+      console.log(`Regular alarms registered successfully for Case ID: ${caseData.id}`);
+    } catch (error) {
+      console.error('Error scheduling regular alarms:', error);
+    }
   }
 }

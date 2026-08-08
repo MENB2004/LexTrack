@@ -11,6 +11,7 @@ import {
   Keyboard,
   ActivityIndicator,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import Logo from '../components/Logo';
@@ -32,6 +33,8 @@ const getPasswordStrength = (pwd) => {
 };
 
 export default function SignUpScreen({ navigation }) {
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -130,8 +133,8 @@ export default function SignUpScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+      <Pressable onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={[styles.scrollContainer, isDesktop && { maxWidth: 420, width: '100%', alignSelf: 'center' }]} keyboardShouldPersistTaps="handled">
           <View style={styles.headerContainer}>
             <Logo size={70} />
             <Text style={[styles.logo, { marginTop: 12 }]}>LexTrack</Text>

@@ -11,6 +11,8 @@ import {
   Pressable,
   Alert,
   Modal,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -21,6 +23,9 @@ import { logActivity } from '../utils/activity';
 
 export default function DashboardScreen({ navigation, selectView }) {
   const { isDark, colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
+  const numColumns = isDesktop ? (width > 1200 ? 3 : 2) : 1;
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -205,13 +210,22 @@ export default function DashboardScreen({ navigation, selectView }) {
     const statusStyle = getStatusStyle(item.status);
     const typeColor = getCaseTypeColor(item.case_type);
 
-    return (
+    const cardContent = (
       <Pressable
         style={({ hovered, pressed }) => [
           styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
+          { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: numColumns > 1 ? 0 : 14 },
           item.is_priority && { borderColor: colors.priorityGold, borderLeftWidth: 4 },
-          hovered && { backgroundColor: isDark ? '#2e3b50' : '#f1f5f9', transform: [{ scale: 1.01 }] },
+          hovered && {
+            backgroundColor: isDark ? '#2e3b50' : '#f8fafc',
+            borderColor: colors.accent,
+            transform: [{ translateY: -4 }],
+            shadowColor: colors.accent,
+            shadowOpacity: 0.15,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 4,
+          },
           pressed && { opacity: 0.9 }
         ]}
         onPress={() => navigation.navigate('CaseDetail', { caseId: item.id })}
@@ -261,6 +275,15 @@ export default function DashboardScreen({ navigation, selectView }) {
         </View>
       </Pressable>
     );
+
+    if (numColumns > 1) {
+      return (
+        <View style={{ flex: 1, maxWidth: `${100 / numColumns}%`, marginVertical: 7, paddingHorizontal: 4 }}>
+          {cardContent}
+        </View>
+      );
+    }
+    return cardContent;
   };
 
   return (
@@ -382,8 +405,11 @@ export default function DashboardScreen({ navigation, selectView }) {
           data={sortedCases}
           keyExtractor={(item) => item.id}
           renderItem={renderCaseItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.listContent, isDesktop && { paddingHorizontal: 12 }]}
+          columnWrapperStyle={numColumns > 1 ? { gap: 16, paddingHorizontal: 8 } : undefined}
+          numColumns={numColumns}
+          key={numColumns}
+          showsVerticalScrollIndicator={true}
           onRefresh={() => fetchCases(userId)}
           refreshing={loading}
         />
@@ -400,13 +426,21 @@ export default function DashboardScreen({ navigation, selectView }) {
       )}
 
       {/* FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.accent }]}
+      <Pressable
+        style={({ hovered, pressed }) => [
+          styles.fab,
+          { backgroundColor: colors.accent },
+          hovered && {
+            transform: [{ scale: 1.1 }, { translateY: -2 }],
+            shadowOpacity: 0.4,
+            shadowRadius: 8,
+          },
+          pressed && { opacity: 0.8 }
+        ]}
         onPress={() => setShowFabMenu(true)}
-        activeOpacity={0.8}
       >
         <Ionicons name="add" size={28} color="#ffffff" />
-      </TouchableOpacity>
+      </Pressable>
 
       {/* FAB Menu Modal Overlay */}
       {showFabMenu && (
@@ -414,8 +448,20 @@ export default function DashboardScreen({ navigation, selectView }) {
           <Pressable style={styles.fabOverlay} onPress={() => setShowFabMenu(false)}>
             <View style={styles.fabMenuContainer}>
               {/* Option 2: Add New Case */}
-              <TouchableOpacity
-                style={[styles.fabOption, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  styles.fabOption,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  hovered && {
+                    borderColor: colors.accent,
+                    transform: [{ translateX: -6 }],
+                    shadowColor: colors.accent,
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    shadowOffset: { width: -2, height: 4 },
+                  },
+                  pressed && { opacity: 0.8 }
+                ]}
                 onPress={() => {
                   setShowFabMenu(false);
                   if (selectView) {
@@ -424,17 +470,28 @@ export default function DashboardScreen({ navigation, selectView }) {
                     navigation.navigate('Add Case');
                   }
                 }}
-                activeOpacity={0.8}
               >
                 <Text style={[styles.fabOptionLabel, { color: colors.text }]}>Add New Case</Text>
                 <View style={[styles.fabOptionIcon, { backgroundColor: colors.accent }]}>
                   <Ionicons name="briefcase-outline" size={18} color="#ffffff" />
                 </View>
-              </TouchableOpacity>
+              </Pressable>
 
               {/* Option 1: Add Client */}
-              <TouchableOpacity
-                style={[styles.fabOption, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  styles.fabOption,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  hovered && {
+                    borderColor: colors.accent,
+                    transform: [{ translateX: -6 }],
+                    shadowColor: colors.accent,
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    shadowOffset: { width: -2, height: 4 },
+                  },
+                  pressed && { opacity: 0.8 }
+                ]}
                 onPress={() => {
                   setShowFabMenu(false);
                   if (selectView) {
@@ -443,13 +500,12 @@ export default function DashboardScreen({ navigation, selectView }) {
                     navigation.navigate('Clients');
                   }
                 }}
-                activeOpacity={0.8}
               >
                 <Text style={[styles.fabOptionLabel, { color: colors.text }]}>Add Client</Text>
                 <View style={[styles.fabOptionIcon, { backgroundColor: colors.accent }]}>
                   <Ionicons name="person-add-outline" size={18} color="#ffffff" />
                 </View>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </Pressable>
         </Modal>
@@ -477,6 +533,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 6,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   header: {
     flexDirection: 'row',
@@ -544,6 +602,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   cardPriority: {
     borderColor: '#fbbf24',
@@ -705,6 +765,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   fabOptionLabel: {
     fontSize: 14,

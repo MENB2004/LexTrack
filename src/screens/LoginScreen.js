@@ -10,11 +10,14 @@ import {
   Pressable,
   Keyboard,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import Logo from '../components/Logo';
 
 export default function LoginScreen({ navigation }) {
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -50,8 +53,8 @@ export default function LoginScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
-        <View style={styles.innerContainer}>
+      <Pressable onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss} style={{ flex: 1 }}>
+        <View style={[styles.innerContainer, isDesktop && { maxWidth: 420, width: '100%', alignSelf: 'center' }]}>
           <View style={styles.headerContainer}>
             <Logo size={70} />
             <Text style={[styles.logo, { marginTop: 12 }]}>LexTrack</Text>

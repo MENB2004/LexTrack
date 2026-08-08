@@ -12,6 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
+  Pressable,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +21,8 @@ import { useTheme } from '../context/ThemeContext';
 
 export default function ClientListScreen({ navigation }) {
   const { colors, isDark } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,10 +142,21 @@ export default function ClientListScreen({ navigation }) {
   });
 
   const renderClientItem = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+    <Pressable
+      style={({ hovered, pressed }) => [
+        styles.card,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        hovered && {
+          borderColor: colors.accent,
+          transform: [{ translateY: -3 }],
+          shadowColor: colors.accent,
+          shadowOpacity: 0.15,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        },
+        pressed && { opacity: 0.7 }
+      ]}
       onPress={() => navigation.navigate('ClientDetail', { clientId: item.id })}
-      activeOpacity={0.8}
     >
       <View style={styles.cardHeader}>
         <View style={[styles.avatarCircle, { backgroundColor: colors.border }]}>
@@ -164,59 +179,69 @@ export default function ClientListScreen({ navigation }) {
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textSub} />
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* SEARCH ROW */}
-      <View style={styles.searchRow}>
-        <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Ionicons name="search-outline" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search clients by name, email, or phone..."
-            placeholderTextColor={colors.textSub}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            clearButtonMode="while-editing"
+      <View style={[{ flex: 1 }, isDesktop && { maxWidth: 800, width: '100%', alignSelf: 'center' }]}>
+        {/* SEARCH ROW */}
+        <View style={styles.searchRow}>
+          <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="search-outline" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              placeholder="Search clients by name, email, or phone..."
+              placeholderTextColor={colors.textSub}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              clearButtonMode="while-editing"
+            />
+          </View>
+        </View>
+
+        {/* CLIENTS LIST */}
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={colors.accent} />
+          </View>
+        ) : filteredClients.length > 0 ? (
+          <FlatList
+            data={filteredClients}
+            keyExtractor={(item) => item.id}
+            renderItem={renderClientItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={true}
+            onRefresh={fetchClients}
+            refreshing={loading}
           />
-        </View>
+        ) : (
+          <View style={styles.centerContainer}>
+            <Ionicons name="people-outline" size={64} color={colors.border} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Clients Found</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSub }]}>
+              {searchQuery ? 'Try adjusting your search query.' : 'Add your first client profile to get started.'}
+            </Text>
+          </View>
+        )}
+
+        {/* FAB */}
+        <Pressable
+          style={({ hovered, pressed }) => [
+            styles.fab,
+            { backgroundColor: colors.accent },
+            hovered && {
+              transform: [{ scale: 1.1 }, { translateY: -2 }],
+              shadowOpacity: 0.4,
+              shadowRadius: 8,
+            },
+            pressed && { opacity: 0.8 }
+          ]}
+          onPress={() => setShowAddModal(true)}
+        >
+          <Ionicons name="add" size={28} color="#ffffff" />
+        </Pressable>
       </View>
-
-      {/* CLIENTS LIST */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
-        </View>
-      ) : filteredClients.length > 0 ? (
-        <FlatList
-          data={filteredClients}
-          keyExtractor={(item) => item.id}
-          renderItem={renderClientItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          onRefresh={fetchClients}
-          refreshing={loading}
-        />
-      ) : (
-        <View style={styles.centerContainer}>
-          <Ionicons name="people-outline" size={64} color={colors.border} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Clients Found</Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textSub }]}>
-            {searchQuery ? 'Try adjusting your search query.' : 'Add your first client profile to get started.'}
-          </Text>
-        </View>
-      )}
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.accent }]}
-        onPress={() => setShowAddModal(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={28} color="#ffffff" />
-      </TouchableOpacity>
 
       {/* ADD CLIENT MODAL */}
       <Modal visible={showAddModal} transparent animationType="slide">
@@ -301,15 +326,31 @@ export default function ClientListScreen({ navigation }) {
               </View>
 
               <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.cancelBtn, { borderColor: colors.border }]}
+                <Pressable
+                  style={({ hovered, pressed }) => [
+                    styles.cancelBtn,
+                    { borderColor: colors.border },
+                    hovered && { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' },
+                    pressed && { opacity: 0.7 }
+                  ]}
                   onPress={() => setShowAddModal(false)}
                   disabled={addLoading}
                 >
                   <Text style={[styles.cancelBtnText, { color: colors.textSub }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.saveBtn, { backgroundColor: colors.accent }]}
+                </Pressable>
+                <Pressable
+                  style={({ hovered, pressed }) => [
+                    styles.saveBtn,
+                    { backgroundColor: colors.accent },
+                    hovered && {
+                      transform: [{ translateY: -2 }],
+                      shadowColor: colors.accent,
+                      shadowOpacity: 0.2,
+                      shadowRadius: 6,
+                      shadowOffset: { width: 0, height: 3 },
+                    },
+                    pressed && { opacity: 0.8 }
+                  ]}
                   onPress={handleAddClient}
                   disabled={addLoading}
                 >
@@ -318,7 +359,7 @@ export default function ClientListScreen({ navigation }) {
                   ) : (
                     <Text style={styles.saveBtnText}>Add Client</Text>
                   )}
-                </TouchableOpacity>
+                </Pressable>
               </View>
             </ScrollView>
           </View>
@@ -358,6 +399,8 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -419,6 +462,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   modalOverlay: {
     flex: 1,
@@ -473,6 +518,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 8,
+    borderWidth: 1,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   cancelBtnText: {
     fontSize: 15,
@@ -484,6 +532,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     minWidth: 110,
     alignItems: 'center',
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   saveBtnText: {
     color: '#ffffff',

@@ -8,6 +8,9 @@ import {
   ActivityIndicator,
   FlatList,
   StatusBar,
+  useWindowDimensions,
+  Platform,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +23,9 @@ const screenWidth = Dimensions.get('window').width;
 
 export default function AnalyticsScreen() {
   const { isDark, colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
+  const chartWidth = isDesktop ? (width - 380) / 2 : width - 72;
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     ongoing: 0,
@@ -168,68 +174,167 @@ export default function AnalyticsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: '#34d399' }]}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={true}>
+        <View style={[styles.statsGrid, isDesktop && { flexDirection: 'row', flexWrap: 'nowrap' }]}>
+          <Pressable style={({ hovered }) => [
+            styles.statCard,
+            { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: '#34d399' },
+            isDesktop && { flex: 1, minWidth: 120, width: undefined },
+            hovered && {
+              borderColor: colors.accent,
+              transform: [{ translateY: -4 }],
+              shadowColor: colors.accent,
+              shadowOpacity: 0.12,
+              shadowRadius: 6,
+              shadowOffset: { width: 0, height: 3 },
+            }
+          ]}>
             <Text style={[styles.statLabel, { color: colors.textSub }]}>Active</Text>
             <Text style={[styles.statValue, { color: '#34d399' }]}>{stats.ongoing}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: '#ef4444' }]}>
+          </Pressable>
+          <Pressable style={({ hovered }) => [
+            styles.statCard,
+            { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: '#ef4444' },
+            isDesktop && { flex: 1, minWidth: 120, width: undefined },
+            hovered && {
+              borderColor: colors.accent,
+              transform: [{ translateY: -4 }],
+              shadowColor: colors.accent,
+              shadowOpacity: 0.12,
+              shadowRadius: 6,
+              shadowOffset: { width: 0, height: 3 },
+            }
+          ]}>
             <Text style={[styles.statLabel, { color: colors.textSub }]}>Closed</Text>
             <Text style={[styles.statValue, { color: '#ef4444' }]}>{stats.completed}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: colors.priorityGold }]}>
+          </Pressable>
+          <Pressable style={({ hovered }) => [
+            styles.statCard,
+            { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: colors.priorityGold },
+            isDesktop && { flex: 1, minWidth: 120, width: undefined },
+            hovered && {
+              borderColor: colors.accent,
+              transform: [{ translateY: -4 }],
+              shadowColor: colors.accent,
+              shadowOpacity: 0.12,
+              shadowRadius: 6,
+              shadowOffset: { width: 0, height: 3 },
+            }
+          ]}>
             <Text style={[styles.statLabel, { color: colors.textSub }]}>Priority</Text>
             <Text style={[styles.statValue, { color: colors.priorityGold }]}>{stats.priority}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: colors.accent }]}>
+          </Pressable>
+          <Pressable style={({ hovered }) => [
+            styles.statCard,
+            { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: colors.accent },
+            isDesktop && { flex: 1, minWidth: 120, width: undefined },
+            hovered && {
+              borderColor: colors.accent,
+              transform: [{ translateY: -4 }],
+              shadowColor: colors.accent,
+              shadowOpacity: 0.12,
+              shadowRadius: 6,
+              shadowOffset: { width: 0, height: 3 },
+            }
+          ]}>
             <Text style={[styles.statLabel, { color: colors.textSub }]}>Upcoming</Text>
             <Text style={[styles.statValue, { color: colors.accent }]}>{stats.upcoming}</Text>
+          </Pressable>
+        </View>
+
+        {isDesktop ? (
+          <View style={{ flexDirection: 'row', gap: 16, marginBottom: 20 }}>
+            {/* PIE CHART */}
+            <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1, marginBottom: 0 }]}>
+              <Text style={[styles.chartTitle, { color: colors.text }]}>Case Resolution Split</Text>
+              {stats.ongoing === 0 && stats.completed === 0 ? (
+                <Text style={[styles.noDataText, { color: colors.textSub }]}>No case data available for chart.</Text>
+              ) : (
+                <PieChart
+                  data={chartData.pie}
+                  width={chartWidth}
+                  height={180}
+                  chartConfig={chartConfig}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  absolute
+                />
+              )}
+            </View>
+
+            {/* BAR CHART */}
+            <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1, marginBottom: 0 }]}>
+              <Text style={[styles.chartTitle, { color: colors.text }]}>Cases Filed by Month</Text>
+              {chartData.bar.labels.length === 0 ? (
+                <Text style={[styles.noDataText, { color: colors.textSub }]}>No filing timeline data available.</Text>
+              ) : (
+                <BarChart
+                  data={chartData.bar}
+                  width={chartWidth}
+                  height={220}
+                  chartConfig={{
+                    ...chartConfig,
+                    backgroundGradientFrom: colors.surface,
+                    backgroundGradientTo: colors.surface,
+                    color: (opacity = 1) => colors.accent,
+                  }}
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 8,
+                  }}
+                  showBarTops={false}
+                  fromZero
+                />
+              )}
+            </View>
           </View>
-        </View>
+        ) : (
+          <>
+            <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.chartTitle, { color: colors.text }]}>Case Resolution Split</Text>
+              {stats.ongoing === 0 && stats.completed === 0 ? (
+                <Text style={[styles.noDataText, { color: colors.textSub }]}>No case data available for chart.</Text>
+              ) : (
+                <PieChart
+                  data={chartData.pie}
+                  width={chartWidth}
+                  height={180}
+                  chartConfig={chartConfig}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  absolute
+                />
+              )}
+            </View>
 
-        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.chartTitle, { color: colors.text }]}>Case Resolution Split</Text>
-          {stats.ongoing === 0 && stats.completed === 0 ? (
-            <Text style={[styles.noDataText, { color: colors.textSub }]}>No case data available for chart.</Text>
-          ) : (
-            <PieChart
-              data={chartData.pie}
-              width={screenWidth - 72}
-              height={180}
-              chartConfig={chartConfig}
-              accessor="population"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
-          )}
-        </View>
-
-        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.chartTitle, { color: colors.text }]}>Cases Filed by Month</Text>
-          {chartData.bar.labels.length === 0 ? (
-            <Text style={[styles.noDataText, { color: colors.textSub }]}>No filing timeline data available.</Text>
-          ) : (
-            <BarChart
-              data={chartData.bar}
-              width={screenWidth - 72}
-              height={220}
-              chartConfig={{
-                ...chartConfig,
-                backgroundGradientFrom: colors.surface,
-                backgroundGradientTo: colors.surface,
-                color: (opacity = 1) => colors.accent,
-              }}
-              style={{
-                marginVertical: 8,
-                borderRadius: 8,
-              }}
-              showBarTops={false}
-              fromZero
-            />
-          )}
-        </View>
+            <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.chartTitle, { color: colors.text }]}>Cases Filed by Month</Text>
+              {chartData.bar.labels.length === 0 ? (
+                <Text style={[styles.noDataText, { color: colors.textSub }]}>No filing timeline data available.</Text>
+              ) : (
+                <BarChart
+                  data={chartData.bar}
+                  width={chartWidth}
+                  height={220}
+                  chartConfig={{
+                    ...chartConfig,
+                    backgroundGradientFrom: colors.surface,
+                    backgroundGradientTo: colors.surface,
+                    color: (opacity = 1) => colors.accent,
+                  }}
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 8,
+                  }}
+                  showBarTops={false}
+                  fromZero
+                />
+              )}
+            </View>
+          </>
+        )}
 
         <View style={[styles.upcomingSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Hearings (Next 5)</Text>
@@ -310,6 +415,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
     borderLeftWidth: 4,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   statLabel: {
     fontSize: 12,

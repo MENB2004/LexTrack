@@ -13,9 +13,12 @@ import {
   Platform,
   Linking,
   FlatList,
+  useWindowDimensions,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import WebDatePicker from '../components/WebDatePicker';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { schedulePriorityAlarms, cancelPriorityAlarms, scheduleRegularAlarms } from '../utils/alarms';
@@ -25,6 +28,8 @@ import courtsData from '../utils/courts.json';
 
 export default function CaseDetailScreen({ route, navigation }) {
   const { isDark, colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const { caseId } = route.params;
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -347,7 +352,7 @@ export default function CaseDetailScreen({ route, navigation }) {
         </View>
       )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && { maxWidth: 900, width: '100%', alignSelf: 'center' }]}>
         {/* CARD WRAPPER */}
         <View style={[styles.detailsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
@@ -518,32 +523,53 @@ export default function CaseDetailScreen({ route, navigation }) {
         <View style={styles.actionContainer}>
           {caseData.status === 'Active' && (
             <>
-              <TouchableOpacity
-                style={[styles.scheduleButton, { backgroundColor: colors.accent }]}
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  styles.scheduleButton,
+                  { backgroundColor: colors.accent },
+                  hovered && {
+                    transform: [{ translateY: -2 }],
+                    shadowColor: colors.accent,
+                    shadowOpacity: 0.2,
+                    shadowRadius: 6,
+                    shadowOffset: { width: 0, height: 3 },
+                  },
+                  pressed && { opacity: 0.8 }
+                ]}
                 onPress={() => setShowScheduleModal(true)}
               >
                 <Ionicons name="calendar" size={20} color="#ffffff" style={{ marginRight: 8 }} />
                 <Text style={styles.scheduleButtonText}>Schedule Hearing</Text>
-              </TouchableOpacity>
+              </Pressable>
 
-              <TouchableOpacity
-                style={[styles.closeButton, { borderColor: colors.danger, backgroundColor: 'transparent', borderWidth: 1 }]}
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  styles.closeButton,
+                  { borderColor: colors.danger, backgroundColor: 'transparent', borderWidth: 1 },
+                  hovered && { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)' },
+                  pressed && { opacity: 0.8 }
+                ]}
                 onPress={() => setShowCloseModal(true)}
               >
                 <Ionicons name="lock-closed" size={20} color={colors.danger} style={{ marginRight: 8 }} />
                 <Text style={[styles.closeButtonText, { color: colors.danger }]}>Close Case</Text>
-              </TouchableOpacity>
+              </Pressable>
             </>
           )}
 
           {userRole === 'owner' && (
-            <TouchableOpacity
-              style={[styles.deleteButton, { borderColor: colors.danger, backgroundColor: 'transparent', borderWidth: 1 }]}
+            <Pressable
+              style={({ hovered, pressed }) => [
+                styles.deleteButton,
+                { borderColor: colors.danger, backgroundColor: 'transparent', borderWidth: 1 },
+                hovered && { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)' },
+                pressed && { opacity: 0.8 }
+              ]}
               onPress={handleDeleteCase}
             >
               <Ionicons name="trash-outline" size={20} color={colors.danger} style={{ marginRight: 8 }} />
               <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Delete Case Record</Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
         </View>
 
@@ -657,38 +683,21 @@ export default function CaseDetailScreen({ route, navigation }) {
             <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>Select the new hearing date and optional location.</Text>
 
             {Platform.OS === 'web' ? (
-              <View style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <Ionicons name="calendar-outline" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
-                <input
-                  type="date"
-                  value={newHearingDate.toISOString().split('T')[0]}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      const selected = new Date(e.target.value + 'T00:00:00');
-                      if (!isNaN(selected.getTime())) {
-                        const today = new Date();
-                        today.setHours(0,0,0,0);
-                        if (selected < today) {
-                          Alert.alert('Validation Error', 'Hearing date cannot be in the past.');
-                          return;
-                        }
-                        setNewHearingDate(selected);
-                      }
+              <WebDatePicker
+                value={newHearingDate}
+                onChange={(selected) => {
+                  if (selected) {
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    if (selected < today) {
+                      Alert.alert('Validation Error', 'Hearing date cannot be in the past.');
+                      return;
                     }
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: isDark ? '#f8fafc' : '#0f172a',
-                    fontSize: 15,
-                    flex: 1,
-                    outline: 'none',
-                    fontFamily: 'inherit',
-                    cursor: 'pointer',
-                  }}
-                />
-              </View>
+                    setNewHearingDate(selected);
+                  }
+                }}
+                minimumDate={new Date()}
+              />
             ) : (
               <>
                 <TouchableOpacity style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => setShowDatePicker(true)}>
@@ -1056,6 +1065,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   scheduleButtonText: {
     color: '#ffffff',
@@ -1071,6 +1082,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#78350f',
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   closeButtonText: {
     color: '#fef3c7',
@@ -1175,6 +1188,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   deleteButtonText: {
     fontSize: 16,

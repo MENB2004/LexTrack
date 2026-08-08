@@ -199,7 +199,7 @@ export default function DayDashboardScreen({ route, navigation }) {
           keyExtractor={(item) => item.id}
           renderItem={renderCaseItem}
           contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
         />
       ) : (
         <View style={styles.emptyContainer}>

@@ -9,6 +9,8 @@ import {
   StatusBar,
   Pressable,
   BackHandler,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +31,8 @@ const DRAWER_WIDTH = 280;
 
 export default function MainScreen({ navigation }) {
   const { isDark, colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && screenWidth > 768;
   const [currentView, setCurrentView] = useState('Dashboard');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -134,36 +138,97 @@ export default function MainScreen({ navigation }) {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
-      {/* TOP HEADER BAR */}
-      <View style={[styles.header, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {currentView !== 'Dashboard' ? (
-          <TouchableOpacity
-            onPress={() => selectView('Dashboard')}
-            style={styles.menuButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="arrow-back" size={26} color={colors.text} />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            onPress={() => toggleDrawer(true)}
-            style={styles.menuButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="menu" size={26} color={colors.text} />
-          </TouchableOpacity>
+      <View style={{ flexDirection: 'row', flex: 1 }}>
+        {/* PERSISTENT SIDEBAR FOR DESKTOP */}
+        {isDesktop && (
+          <View style={[styles.sidebar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.drawerHeader, { borderColor: colors.border }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Logo size={32} />
+                <Text style={[styles.drawerLogo, { color: colors.text, marginLeft: 8 }]}>LexTrack</Text>
+              </View>
+            </View>
+
+            <View style={styles.drawerMenu}>
+              {menuItems.map((item) => {
+                const isSelected = currentView === item.name;
+                return (
+                  <Pressable
+                    key={item.name}
+                    onPress={() => setCurrentView(item.name)}
+                    style={({ hovered, pressed }) => [
+                      styles.drawerItem,
+                      isSelected 
+                        ? { backgroundColor: isDark ? '#312e81' : '#e0e7ff' } 
+                        : (hovered && { backgroundColor: isDark ? '#1e293b' : '#f1f5f9', transform: [{ translateX: 4 }] }),
+                      pressed && { opacity: 0.7 }
+                    ]}
+                  >
+                    <Ionicons
+                      name={isSelected ? item.activeIcon : item.icon}
+                      size={20}
+                      color={isSelected ? colors.accent : colors.textSub}
+                      style={styles.drawerIcon}
+                    />
+                    <Text
+                      style={[
+                        styles.drawerLabel,
+                        { color: isSelected ? colors.accent : colors.text },
+                        isSelected && { fontWeight: 'bold' },
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={[styles.drawerFooter, { borderColor: colors.border }]}>
+              <Text style={[styles.footerText, { color: colors.textSub }]}>LexTrack Counsel Portal</Text>
+              <Text style={styles.footerVersion}>v1.0.0 Stable</Text>
+            </View>
+          </View>
         )}
-        <Text style={[styles.headerTitle, { color: colors.text }]}>{getViewTitle()}</Text>
-        <View style={{ width: 28 }} />
+
+        {/* MAIN PANEL CONTENT */}
+        <View style={{ flex: 1 }}>
+          {/* TOP HEADER BAR */}
+          <View style={[styles.header, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {!isDesktop ? (
+              currentView !== 'Dashboard' ? (
+                <TouchableOpacity
+                  onPress={() => selectView('Dashboard')}
+                  style={styles.menuButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="arrow-back" size={26} color={colors.text} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => toggleDrawer(true)}
+                  style={styles.menuButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="menu" size={26} color={colors.text} />
+                </TouchableOpacity>
+              )
+            ) : null}
+            <Text style={[styles.headerTitle, { color: colors.text, marginLeft: isDesktop ? 8 : 0 }]}>
+              {getViewTitle()}
+            </Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          {/* ACTIVE SCREEN CONTENT */}
+          <View style={styles.mainContent}>
+            {renderContent()}
+          </View>
+        </View>
       </View>
 
-      {/* ACTIVE SCREEN CONTENT */}
-      <View style={styles.mainContent}>
-        {renderContent()}
-      </View>
-
-      {/* DRAWER SLIDEOUT NAVIGATION OVERLAY */}
-      {drawerOpen && (
+      {/* DRAWER SLIDEOUT NAVIGATION OVERLAY (Mobile only) */}
+      {!isDesktop && drawerOpen && (
         <Animated.View
           style={[
             styles.backdrop,
@@ -177,66 +242,68 @@ export default function MainScreen({ navigation }) {
         </Animated.View>
       )}
 
-      <Animated.View
-        style={[
-          styles.drawerContainer,
-          {
-            transform: [{ translateX: slideAnim }],
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-          },
-        ]}
-      >
-        <View style={[styles.drawerHeader, { borderColor: colors.border }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Logo size={32} />
-            <Text style={[styles.drawerLogo, { color: colors.text, marginLeft: 8 }]}>LexTrack</Text>
+      {!isDesktop && (
+        <Animated.View
+          style={[
+            styles.drawerContainer,
+            {
+              transform: [{ translateX: slideAnim }],
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View style={[styles.drawerHeader, { borderColor: colors.border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Logo size={32} />
+              <Text style={[styles.drawerLogo, { color: colors.text, marginLeft: 8 }]}>LexTrack</Text>
+            </View>
+            <TouchableOpacity onPress={() => toggleDrawer(false)}>
+              <Ionicons name="close" size={24} color={colors.textSub} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={() => toggleDrawer(false)}>
-            <Ionicons name="close" size={24} color={colors.textSub} />
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.drawerMenu}>
-          {menuItems.map((item) => {
-            const isSelected = currentView === item.name;
-            return (
-              <Pressable
-                key={item.name}
-                onPress={() => selectView(item.name)}
-                style={({ hovered, pressed }) => [
-                  styles.drawerItem,
-                  isSelected 
-                    ? { backgroundColor: isDark ? '#312e81' : '#e0e7ff' } 
-                    : (hovered && { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }),
-                  pressed && { opacity: 0.7 }
-                ]}
-              >
-                <Ionicons
-                  name={isSelected ? item.activeIcon : item.icon}
-                  size={20}
-                  color={isSelected ? colors.accent : colors.textSub}
-                  style={styles.drawerIcon}
-                />
-                <Text
-                  style={[
-                    styles.drawerLabel,
-                    { color: isSelected ? colors.accent : colors.text },
-                    isSelected && { fontWeight: 'bold' },
+          <View style={styles.drawerMenu}>
+            {menuItems.map((item) => {
+              const isSelected = currentView === item.name;
+              return (
+                <Pressable
+                  key={item.name}
+                  onPress={() => selectView(item.name)}
+                  style={({ hovered, pressed }) => [
+                    styles.drawerItem,
+                    isSelected 
+                      ? { backgroundColor: isDark ? '#312e81' : '#e0e7ff' } 
+                      : (hovered && { backgroundColor: isDark ? '#1e293b' : '#f1f5f9', transform: [{ translateX: 4 }] }),
+                    pressed && { opacity: 0.7 }
                   ]}
                 >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                  <Ionicons
+                    name={isSelected ? item.activeIcon : item.icon}
+                    size={20}
+                    color={isSelected ? colors.accent : colors.textSub}
+                    style={styles.drawerIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.drawerLabel,
+                      { color: isSelected ? colors.accent : colors.text },
+                      isSelected && { fontWeight: 'bold' },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
-        <View style={[styles.drawerFooter, { borderColor: colors.border }]}>
-          <Text style={[styles.footerText, { color: colors.textSub }]}>LexTrack Counsel Portal</Text>
-          <Text style={styles.footerVersion}>v1.0.0 Stable</Text>
-        </View>
-      </Animated.View>
+          <View style={[styles.drawerFooter, { borderColor: colors.border }]}>
+            <Text style={[styles.footerText, { color: colors.textSub }]}>LexTrack Counsel Portal</Text>
+            <Text style={styles.footerVersion}>v1.0.0 Stable</Text>
+          </View>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -244,6 +311,11 @@ export default function MainScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  sidebar: {
+    width: 260,
+    borderRightWidth: 1,
+    height: '100%',
   },
   header: {
     flexDirection: 'row',
@@ -302,6 +374,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 8,
     marginBottom: 6,
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
   },
   drawerIcon: {
     marginRight: 14,

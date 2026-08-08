@@ -10,6 +10,9 @@ import {
   Alert,
   Modal,
   TextInput,
+  ScrollView,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen() {
   const { isDark, toggle, colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const [userEmail, setUserEmail] = useState(supabase.auth.currentUser?.email || 'lawyer@firm.com');
   const [digestEnabled, setDigestEnabled] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
@@ -181,7 +186,8 @@ export default function SettingsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }} showsVerticalScrollIndicator={true}>
+        <View style={[styles.content, isDesktop && { maxWidth: 700, width: '100%', alignSelf: 'center' }]}>
         {/* ACCOUNT CARD */}
         <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={styles.sectionTitle}>Account Profile</Text>
@@ -304,6 +310,7 @@ export default function SettingsScreen() {
           <Text style={styles.versionText}>Version 1.0.0 (Expo SDK 54)</Text>
         </View>
       </View>
+      </ScrollView>
 
       {/* EDIT PROFILE MODAL */}
       <Modal visible={showEditModal} transparent animationType="slide">

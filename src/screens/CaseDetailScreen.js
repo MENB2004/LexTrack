@@ -21,6 +21,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import WebDatePicker from '../components/WebDatePicker';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import Sidebar from '../components/Sidebar';
 import { schedulePriorityAlarms, cancelPriorityAlarms, scheduleRegularAlarms } from '../utils/alarms';
 import { useTheme } from '../context/ThemeContext';
 import { logActivity } from '../utils/activity';
@@ -327,32 +328,51 @@ export default function CaseDetailScreen({ route, navigation }) {
   const typeColor = getCaseTypeColor(caseData.case_type);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView 
+      style={[
+        styles.container, 
+        { backgroundColor: colors.background },
+        Platform.OS === 'web' && { height: '100vh', overflow: 'hidden' }
+      ]} 
+      edges={['top', 'left', 'right']}
+    >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       
-      {/* HEADER BAR */}
-      <View style={[styles.header, { borderColor: colors.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Case Details</Text>
-        <TouchableOpacity onPress={togglePriority} style={{ padding: 4 }}>
-          <Ionicons
-            name={caseData.is_priority ? 'star' : 'star-outline'}
-            size={24}
-            color={caseData.is_priority ? colors.priorityGold : colors.textSub}
+      <View style={{ flexDirection: 'row', flex: 1 }}>
+        {isDesktop && (
+          <Sidebar 
+            currentView={null} 
+            onSelect={(screenName) => navigation.navigate('Main', { screen: screenName })} 
           />
-        </TouchableOpacity>
-      </View>
+        )}
+        
+        <View style={{ flex: 1, height: '100%' }}>
+          {/* HEADER BAR */}
+          <View style={[styles.header, { borderColor: colors.border }]}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Case Details</Text>
+            <TouchableOpacity onPress={togglePriority} style={{ padding: 4 }}>
+              <Ionicons
+                name={caseData.is_priority ? 'star' : 'star-outline'}
+                size={24}
+                color={caseData.is_priority ? colors.priorityGold : colors.textSub}
+              />
+            </TouchableOpacity>
+          </View>
 
-      {/* DYNAMIC PRIORITY BANNER */}
-      {caseData.is_priority && (
-        <View style={[styles.priorityBanner, { backgroundColor: colors.danger }]}>
-          <Text style={styles.priorityBannerText}>⚠️ HIGH PRIORITY CASE</Text>
-        </View>
-      )}
+          {/* DYNAMIC PRIORITY BANNER */}
+          {caseData.is_priority && (
+            <View style={[styles.priorityBanner, { backgroundColor: colors.danger }]}>
+              <Text style={styles.priorityBannerText}>⚠️ HIGH PRIORITY CASE</Text>
+            </View>
+          )}
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && { maxWidth: 900, width: '100%', alignSelf: 'center' }]}>
+          <ScrollView 
+            contentContainerStyle={[styles.scrollContent, isDesktop && { maxWidth: 900, width: '100%', alignSelf: 'center' }]}
+            showsVerticalScrollIndicator={true}
+          >
         {/* CARD WRAPPER */}
         <View style={[styles.detailsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
@@ -631,6 +651,8 @@ export default function CaseDetailScreen({ route, navigation }) {
           )}
         </View>
       </ScrollView>
+        </View>
+      </View>
 
       {/* CLOSE CASE MODAL */}
       <Modal visible={showCloseModal} transparent animationType="slide">

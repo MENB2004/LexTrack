@@ -107,6 +107,24 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
+    if (Platform.OS === 'web') {
+      const confirmSignOut = window.confirm('Are you sure you want to sign out of LexTrack?');
+      if (confirmSignOut) {
+        setLogoutLoading(true);
+        try {
+          const { error } = await supabase.auth.signOut();
+          if (error) {
+            alert('Error signing out: ' + error.message);
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLogoutLoading(false);
+        }
+      }
+      return;
+    }
+
     Alert.alert(
       'Log Out',
       'Are you sure you want to sign out of LexTrack?',

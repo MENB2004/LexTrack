@@ -7,15 +7,20 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import Sidebar from '../components/Sidebar';
 import { schedulePriorityAlarms, cancelPriorityAlarms } from '../utils/alarms';
 import { useTheme } from '../context/ThemeContext';
 
 export default function DayDashboardScreen({ route, navigation }) {
   const { isDark, colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const { selectedDate } = route.params;
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -173,43 +178,61 @@ export default function DayDashboardScreen({ route, navigation }) {
   });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView 
+      style={[
+        styles.container, 
+        { backgroundColor: colors.background },
+        Platform.OS === 'web' && { height: '100vh', overflow: 'hidden' }
+      ]} 
+      edges={['top', 'left', 'right']}
+    >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       
-      {/* HEADER BAR */}
-      <View style={[styles.header, { borderColor: colors.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Daily Hearings</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.accent }]}>{displayDate}</Text>
-        </View>
-        <View style={{ width: 32 }} />
-      </View>
+      <View style={{ flexDirection: 'row', flex: 1 }}>
+        {isDesktop && (
+          <Sidebar 
+            currentView={null} 
+            onSelect={(screenName) => navigation.navigate('Main', { screen: screenName })} 
+          />
+        )}
+        
+        <View style={{ flex: 1, height: '100%' }}>
+          {/* HEADER BAR */}
+          <View style={[styles.header, { borderColor: colors.border }]}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <View style={styles.headerTitleContainer}>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Daily Hearings</Text>
+              <Text style={[styles.headerSubtitle, { color: colors.accent }]}>{displayDate}</Text>
+            </View>
+            <View style={{ width: 32 }} />
+          </View>
 
-      {/* CASE LIST */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
+          {/* CASE LIST */}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+          ) : cases.length > 0 ? (
+            <FlatList
+              data={cases}
+              keyExtractor={(item) => item.id}
+              renderItem={renderCaseItem}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={true}
+            />
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="calendar-outline" size={64} color={colors.textSub} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Hearings Today</Text>
+              <Text style={styles.emptySubtitle}>
+                There are no court hearings scheduled for this date.
+              </Text>
+            </View>
+          )}
         </View>
-      ) : cases.length > 0 ? (
-        <FlatList
-          data={cases}
-          keyExtractor={(item) => item.id}
-          renderItem={renderCaseItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={true}
-        />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={64} color={colors.textSub} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Hearings Today</Text>
-          <Text style={styles.emptySubtitle}>
-            There are no court hearings scheduled for this date.
-          </Text>
-        </View>
-      )}
+      </View>
     </SafeAreaView>
   );
 }

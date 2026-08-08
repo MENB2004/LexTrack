@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import Logo from '../components/Logo';
+import Sidebar from '../components/Sidebar';
 import { supabase } from '../../lib/supabase';
 
 // Import Screen Components
@@ -29,11 +30,18 @@ import ClientListScreen from './ClientListScreen';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DRAWER_WIDTH = 280;
 
-export default function MainScreen({ navigation }) {
+export default function MainScreen({ navigation, route }) {
   const { isDark, colors } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && screenWidth > 768;
   const [currentView, setCurrentView] = useState('Dashboard');
+
+  useEffect(() => {
+    if (route.params?.screen) {
+      setCurrentView(route.params.screen);
+      navigation.setParams({ screen: undefined });
+    }
+  }, [route.params?.screen]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -135,60 +143,20 @@ export default function MainScreen({ navigation }) {
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView 
+      style={[
+        styles.container, 
+        { backgroundColor: colors.background }, 
+        Platform.OS === 'web' && { height: '100vh', overflow: 'hidden' }
+      ]} 
+      edges={['top', 'left', 'right']}
+    >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       <View style={{ flexDirection: 'row', flex: 1 }}>
         {/* PERSISTENT SIDEBAR FOR DESKTOP */}
         {isDesktop && (
-          <View style={[styles.sidebar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.drawerHeader, { borderColor: colors.border }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Logo size={32} />
-                <Text style={[styles.drawerLogo, { color: colors.text, marginLeft: 8 }]}>LexTrack</Text>
-              </View>
-            </View>
-
-            <View style={styles.drawerMenu}>
-              {menuItems.map((item) => {
-                const isSelected = currentView === item.name;
-                return (
-                  <Pressable
-                    key={item.name}
-                    onPress={() => setCurrentView(item.name)}
-                    style={({ hovered, pressed }) => [
-                      styles.drawerItem,
-                      isSelected 
-                        ? { backgroundColor: isDark ? '#312e81' : '#e0e7ff' } 
-                        : (hovered && { backgroundColor: isDark ? '#1e293b' : '#f1f5f9', transform: [{ translateX: 4 }] }),
-                      pressed && { opacity: 0.7 }
-                    ]}
-                  >
-                    <Ionicons
-                      name={isSelected ? item.activeIcon : item.icon}
-                      size={20}
-                      color={isSelected ? colors.accent : colors.textSub}
-                      style={styles.drawerIcon}
-                    />
-                    <Text
-                      style={[
-                        styles.drawerLabel,
-                        { color: isSelected ? colors.accent : colors.text },
-                        isSelected && { fontWeight: 'bold' },
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <View style={[styles.drawerFooter, { borderColor: colors.border }]}>
-              <Text style={[styles.footerText, { color: colors.textSub }]}>LexTrack Counsel Portal</Text>
-              <Text style={styles.footerVersion}>v1.0.0 Stable</Text>
-            </View>
-          </View>
+          <Sidebar currentView={currentView} onSelect={(screenName) => setCurrentView(screenName)} />
         )}
 
         {/* MAIN PANEL CONTENT */}

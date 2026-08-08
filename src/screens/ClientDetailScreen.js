@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import Sidebar from '../components/Sidebar';
 import { useTheme } from '../context/ThemeContext';
 
 export default function ClientDetailScreen({ route, navigation }) {
@@ -198,21 +199,40 @@ export default function ClientDetailScreen({ route, navigation }) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView 
+      style={[
+        styles.container, 
+        { backgroundColor: colors.background },
+        Platform.OS === 'web' && { height: '100vh', overflow: 'hidden' }
+      ]} 
+      edges={['top', 'left', 'right']}
+    >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       
-      {/* HEADER */}
-      <View style={[styles.header, { borderColor: colors.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Client Profile</Text>
-        <TouchableOpacity style={{ padding: 4 }} onPress={() => setShowEditModal(true)}>
-          <Ionicons name="create-outline" size={24} color={colors.accent} />
-        </TouchableOpacity>
-      </View>
+      <View style={{ flexDirection: 'row', flex: 1 }}>
+        {isDesktop && (
+          <Sidebar 
+            currentView={null} 
+            onSelect={(screenName) => navigation.navigate('Main', { screen: screenName })} 
+          />
+        )}
+        
+        <View style={{ flex: 1, height: '100%' }}>
+          {/* HEADER */}
+          <View style={[styles.header, { borderColor: colors.border }]}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Client Profile</Text>
+            <TouchableOpacity style={{ padding: 4 }} onPress={() => setShowEditModal(true)}>
+              <Ionicons name="create-outline" size={24} color={colors.accent} />
+            </TouchableOpacity>
+          </View>
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && { maxWidth: 800, width: '100%', alignSelf: 'center' }]}>
+          <ScrollView 
+            contentContainerStyle={[styles.scrollContent, isDesktop && { maxWidth: 800, width: '100%', alignSelf: 'center' }]}
+            showsVerticalScrollIndicator={true}
+          >
         {/* CARD WRAPPER */}
         <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
@@ -323,6 +343,8 @@ export default function ClientDetailScreen({ route, navigation }) {
           <Text style={[styles.deleteText, { color: colors.danger }]}>Delete Client Record</Text>
         </Pressable>
       </ScrollView>
+        </View>
+      </View>
 
       {/* EDIT MODAL */}
       <Modal visible={showEditModal} transparent animationType="slide">

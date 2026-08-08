@@ -656,19 +656,56 @@ export default function CaseDetailScreen({ route, navigation }) {
             <Text style={[styles.modalTitle, { color: colors.text }]}>Schedule Next Hearing</Text>
             <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>Select the new hearing date and optional location.</Text>
 
-            <TouchableOpacity style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => setShowDatePicker(true)}>
-              <Ionicons name="calendar-outline" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
-              <Text style={[styles.dateText, { color: colors.text }]}>{newHearingDate.toLocaleDateString()}</Text>
-            </TouchableOpacity>
+            {Platform.OS === 'web' ? (
+              <View style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name="calendar-outline" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
+                <input
+                  type="date"
+                  value={newHearingDate.toISOString().split('T')[0]}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const selected = new Date(e.target.value + 'T00:00:00');
+                      if (!isNaN(selected.getTime())) {
+                        const today = new Date();
+                        today.setHours(0,0,0,0);
+                        if (selected < today) {
+                          Alert.alert('Validation Error', 'Hearing date cannot be in the past.');
+                          return;
+                        }
+                        setNewHearingDate(selected);
+                      }
+                    }
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: isDark ? '#f8fafc' : '#0f172a',
+                    fontSize: 15,
+                    flex: 1,
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                />
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => setShowDatePicker(true)}>
+                  <Ionicons name="calendar-outline" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
+                  <Text style={[styles.dateText, { color: colors.text }]}>{newHearingDate.toLocaleDateString()}</Text>
+                </TouchableOpacity>
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={newHearingDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={onDatePickerChange}
-                minimumDate={new Date()}
-              />
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={newHearingDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={onDatePickerChange}
+                    minimumDate={new Date()}
+                  />
+                )}
+              </>
             )}
 
             {/* COURT VENUE SELECTOR */}

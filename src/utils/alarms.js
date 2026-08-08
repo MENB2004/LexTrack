@@ -1,5 +1,6 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+
+const Notifications = Platform.OS !== 'web' ? require('expo-notifications') : null;
 
 /**
  * Helper to calculate alarm trigger times.

@@ -7,7 +7,7 @@ import MainNavigator from './src/navigation/MainNavigator';
 import { savePushToken } from './src/services/notifications';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as Updates from 'expo-updates';
+const Updates = Platform.OS !== 'web' ? require('expo-updates') : null;
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -42,7 +42,7 @@ function AppContent() {
   // Check for OTA updates via EAS Update
   useEffect(() => {
     async function checkUpdates() {
-      if (__DEV__) return; // Don't check for OTA updates during local development
+      if (__DEV__ || Platform.OS === 'web' || !Updates) return; // Don't check for OTA updates during local development or on web
       try {
         const update = await Updates.checkForUpdateAsync();
         if (update.isAvailable) {

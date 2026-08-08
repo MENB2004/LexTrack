@@ -323,55 +323,139 @@ export default function AddCaseScreen({ navigation, selectView }) {
           {/* DATE FILED */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.textSub }]}>Date Filed *</Text>
-            <TouchableOpacity
-              style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}
-              onPress={() => setShowFiledPicker(true)}
-              disabled={loading}
-            >
-              <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
-              <Text style={[styles.dateText, { color: colors.text }]}>{dateFiled.toLocaleDateString()}</Text>
-            </TouchableOpacity>
-            {showFiledPicker && (
-              <DateTimePicker
-                value={dateFiled}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                maximumDate={new Date()}
-                onChange={onFiledDateChange}
-              />
+            {Platform.OS === 'web' ? (
+              <View style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
+                <input
+                  type="date"
+                  value={dateFiled.toISOString().split('T')[0]}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    const selected = new Date(e.target.value + 'T00:00:00');
+                    if (!isNaN(selected.getTime())) {
+                      if (selected > new Date()) {
+                        setErrorMsg('Date Filed cannot be in the future.');
+                        return;
+                      }
+                      setDateFiled(selected);
+                      setErrorMsg('');
+                    }
+                  }}
+                  disabled={loading}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: isDark ? '#f8fafc' : '#0f172a',
+                    fontSize: 15,
+                    flex: 1,
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                />
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => setShowFiledPicker(true)}
+                  disabled={loading}
+                >
+                  <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
+                  <Text style={[styles.dateText, { color: colors.text }]}>{dateFiled.toLocaleDateString()}</Text>
+                </TouchableOpacity>
+                {showFiledPicker && (
+                  <DateTimePicker
+                    value={dateFiled}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    maximumDate={new Date()}
+                    onChange={onFiledDateChange}
+                  />
+                )}
+              </>
             )}
           </View>
 
           {/* NEXT HEARING DATE */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.textSub }]}>Next Hearing Date (Optional)</Text>
-            <TouchableOpacity
-              style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}
-              onPress={() => setShowHearingPicker(true)}
-              disabled={loading}
-            >
-              <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
-              <Text style={[styles.dateText, { color: nextHearingDate ? colors.text : colors.textSub }]}>
-                {nextHearingDate ? nextHearingDate.toLocaleDateString() : 'Set hearing date...'}
-              </Text>
-              {nextHearingDate && (
+            {Platform.OS === 'web' ? (
+              <View style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
+                <input
+                  type="date"
+                  value={nextHearingDate ? nextHearingDate.toISOString().split('T')[0] : ''}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const selected = new Date(e.target.value + 'T00:00:00');
+                      if (!isNaN(selected.getTime())) {
+                        const today = new Date();
+                        today.setHours(0,0,0,0);
+                        if (selected < today) {
+                          Alert.alert('Validation Error', 'Next Hearing Date cannot be in the past.');
+                          return;
+                        }
+                        setNextHearingDate(selected);
+                      }
+                    } else {
+                      setNextHearingDate(null);
+                    }
+                  }}
+                  disabled={loading}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: nextHearingDate ? (isDark ? '#f8fafc' : '#0f172a') : (isDark ? '#64748b' : '#94a3b8'),
+                    fontSize: 15,
+                    flex: 1,
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                />
+                {nextHearingDate && (
+                  <TouchableOpacity
+                    onPress={() => setNextHearingDate(null)}
+                    style={styles.clearDate}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close-circle" size={18} color={colors.danger} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <>
                 <TouchableOpacity
-                  onPress={() => setNextHearingDate(null)}
-                  style={styles.clearDate}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => setShowHearingPicker(true)}
+                  disabled={loading}
                 >
-                  <Ionicons name="close-circle" size={18} color={colors.danger} />
+                  <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
+                  <Text style={[styles.dateText, { color: nextHearingDate ? colors.text : colors.textSub }]}>
+                    {nextHearingDate ? nextHearingDate.toLocaleDateString() : 'Set hearing date...'}
+                  </Text>
+                  {nextHearingDate && (
+                    <TouchableOpacity
+                      onPress={() => setNextHearingDate(null)}
+                      style={styles.clearDate}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="close-circle" size={18} color={colors.danger} />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-            {showHearingPicker && (
-              <DateTimePicker
-                value={nextHearingDate || new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={onHearingDateChange}
-                minimumDate={new Date()}
-              />
+                {showHearingPicker && (
+                  <DateTimePicker
+                    value={nextHearingDate || new Date()}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={onHearingDateChange}
+                    minimumDate={new Date()}
+                  />
+                )}
+              </>
             )}
           </View>
 

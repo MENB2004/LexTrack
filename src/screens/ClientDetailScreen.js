@@ -168,7 +168,7 @@ export default function ClientDetailScreen({ route, navigation }) {
 
   const handleCall = () => {
     if (client?.phone) {
-      Linking.openURL(`tel:${client.phone}`);
+      Linking.openURL(`tel:+91${client.phone}`);
     }
   };
 
@@ -252,7 +252,7 @@ export default function ClientDetailScreen({ route, navigation }) {
             {client.phone && (
               <View style={styles.detailBlock}>
                 <Text style={[styles.label, { color: colors.textSub }]}>Phone Number</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{client.phone}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>+91 {client.phone}</Text>
               </View>
             )}
 
@@ -335,12 +335,18 @@ export default function ClientDetailScreen({ route, navigation }) {
               {/* PHONE */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: colors.textSub }]}>Phone Number</Text>
-                <TextInput
-                  style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
-                  value={editPhone}
-                  onChangeText={(text) => setEditPhone(text.replace(/[^0-9]/g, ''))}
-                  keyboardType="phone-pad"
-                />
+                <View style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0 }]}>
+                  <View style={{ paddingHorizontal: 12, paddingVertical: 12, borderRightWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.textSub, fontSize: 14, fontWeight: '600' }}>+91</Text>
+                  </View>
+                  <TextInput
+                    style={{ flex: 1, color: colors.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 12 }}
+                    value={editPhone}
+                    onChangeText={(text) => setEditPhone(text.replace(/[^0-9]/g, ''))}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                </View>
               </View>
 
               {/* EMAIL */}

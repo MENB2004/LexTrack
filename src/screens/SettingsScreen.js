@@ -206,7 +206,7 @@ export default function SettingsScreen() {
               ) : null}
               {phone ? (
                 <Text style={[styles.profileDetailText, { color: colors.textSub }]}>
-                  📞 Contact: <Text style={{ color: colors.text }}>{phone}</Text>
+                  📞 Contact: <Text style={{ color: colors.text }}>+91 {phone}</Text>
                 </Text>
               ) : null}
             </View>
@@ -351,14 +351,20 @@ export default function SettingsScreen() {
             {/* CONTACT PHONE */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.textSub }]}>Contact Phone</Text>
-              <TextInput
-                style={[styles.modalInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
-                placeholder="e.g. 5550199"
-                placeholderTextColor={colors.textSub}
-                value={editPhone}
-                onChangeText={(text) => setEditPhone(text.replace(/[^0-9]/g, ''))}
-                keyboardType="phone-pad"
-              />
+              <View style={[styles.modalInput, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0 }]}>
+                <View style={{ paddingHorizontal: 12, paddingVertical: 12, borderRightWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ color: colors.textSub, fontSize: 14, fontWeight: '600' }}>+91</Text>
+                </View>
+                <TextInput
+                  style={{ flex: 1, color: colors.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 12 }}
+                  placeholder="e.g. 9876543210"
+                  placeholderTextColor={colors.textSub}
+                  value={editPhone}
+                  onChangeText={(text) => setEditPhone(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
             </View>
 
             <View style={styles.modalActions}>

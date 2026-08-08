@@ -10,11 +10,46 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 const Updates = Platform.OS !== 'web' ? require('expo-updates') : null;
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import TitleBar from './src/components/TitleBar';
 
 function AppContent() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const { isDark, colors } = useTheme();
+
+  // Inject custom scrollbar style for desktop/web
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const style = document.createElement('style');
+      style.textContent = `
+        /* Premium custom scrollbars */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #1e293b;
+          border-radius: 4px;
+          border: 1px solid #0f172a;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #38bdf8;
+        }
+        
+        /* Remove web focus rings outline */
+        *:focus {
+          outline: none !important;
+        }
+      `;
+      document.head.appendChild(style);
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     // 1. Fetch initial session on app mount
@@ -80,6 +115,7 @@ function AppContent() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      {Platform.OS === 'web' && <TitleBar />}
       <NavigationContainer theme={{
         dark: isDark,
         colors: {

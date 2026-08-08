@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import Logo from '../components/Logo';
 import Sidebar from '../components/Sidebar';
+import { useKeyboardShortcuts } from '../utils/shortcuts';
 import { supabase } from '../../lib/supabase';
 
 // Import Screen Components
@@ -42,6 +43,16 @@ export default function MainScreen({ navigation, route }) {
       navigation.setParams({ screen: undefined });
     }
   }, [route.params?.screen]);
+
+  useKeyboardShortcuts({
+    'n': () => setCurrentView('AddCase'),
+    'f': () => setCurrentView('Dashboard'),
+    ',': () => setCurrentView('Settings'),
+    'escape': () => {
+      setDrawerOpen(false);
+    }
+  });
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;

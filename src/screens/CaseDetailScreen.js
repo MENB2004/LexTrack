@@ -22,6 +22,7 @@ import WebDatePicker from '../components/WebDatePicker';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import Sidebar from '../components/Sidebar';
+import { useKeyboardShortcuts } from '../utils/shortcuts';
 import { schedulePriorityAlarms, cancelPriorityAlarms, scheduleRegularAlarms } from '../utils/alarms';
 import { useTheme } from '../context/ThemeContext';
 import { logActivity } from '../utils/activity';
@@ -31,6 +32,15 @@ export default function CaseDetailScreen({ route, navigation }) {
   const { isDark, colors } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width > 768;
+
+  useKeyboardShortcuts({
+    'escape': () => {
+      setShowCloseModal(false);
+      setShowScheduleModal(false);
+      setShowEditNotesModal(false);
+    }
+  });
+
   const { caseId } = route.params;
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -172,6 +182,30 @@ export default function CaseDetailScreen({ route, navigation }) {
   };
 
   const handleDeleteCase = async () => {
+    if (Platform.OS === 'web') {
+      const confirmDelete = window.confirm('Are you sure you want to permanently delete this case record? This action cannot be undone.');
+      if (confirmDelete) {
+        try {
+          const { error } = await supabase
+            .from('cases')
+            .delete()
+            .eq('id', caseId);
+
+          if (error) {
+            alert('Error: ' + error.message);
+          } else {
+            await cancelPriorityAlarms(caseId);
+            alert('The case has been permanently deleted.');
+            navigation.goBack();
+          }
+        } catch (err) {
+          console.error(err);
+          alert('An unexpected error occurred during deletion.');
+        }
+      }
+      return;
+    }
+
     Alert.alert(
       'Delete Case',
       'Are you sure you want to permanently delete this case record? This action cannot be undone.',
@@ -453,50 +487,7 @@ export default function CaseDetailScreen({ route, navigation }) {
               {caseData.courtroom ? (
                 <Text style={[styles.value, { color: colors.textSub, marginTop: 2 }]}>🏛️ Courtroom/Hall: {caseData.courtroom}</Text>
               ) : null}
-              
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                {courtsData.find(c => c.name === caseData.court_name)?.phone ? (
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: colors.background,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 6,
-                      borderWidth: 1,
-                      borderColor: colors.border
-                    }}
-                    onPress={() => {
-                      const courtPhone = courtsData.find(c => c.name === caseData.court_name)?.phone;
-                      if (courtPhone) Linking.openURL(`tel:${courtPhone}`);
-                    }}
-                  >
-                    <Ionicons name="call" size={14} color={colors.accent} style={{ marginRight: 6 }} />
-                    <Text style={{ fontSize: 13, color: colors.accent, fontWeight: '600' }}>Call Court</Text>
-                  </TouchableOpacity>
-                ) : null}
 
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: colors.background,
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 6,
-                    borderWidth: 1,
-                    borderColor: colors.border
-                  }}
-                  onPress={() => {
-                    const courtAddr = courtsData.find(c => c.name === caseData.court_name)?.address || caseData.court_name;
-                    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(courtAddr)}`);
-                  }}
-                >
-                  <Ionicons name="map" size={14} color={colors.accent} style={{ marginRight: 6 }} />
-                  <Text style={{ fontSize: 13, color: colors.accent, fontWeight: '600' }}>Directions</Text>
-                </TouchableOpacity>
-              </View>
             </View>
           ) : null}
 

@@ -24,6 +24,7 @@ import { schedulePriorityAlarms, scheduleRegularAlarms } from '../utils/alarms';
 import { useTheme } from '../context/ThemeContext';
 import courtsData from '../utils/courts.json';
 import { logActivity } from '../utils/activity';
+import { useKeyboardShortcuts } from '../utils/shortcuts';
 
 const CASE_TYPES = ['Civil', 'Criminal', 'Family', 'Corporate'];
 
@@ -44,6 +45,13 @@ export default function AddCaseScreen({ navigation, selectView }) {
   const [clientId, setClientId] = useState(null);
   const [clients, setClients] = useState([]);
   const [showClientModal, setShowClientModal] = useState(false);
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientAddress, setNewClientAddress] = useState('');
+  const [newClientNotes, setNewClientNotes] = useState('');
+  const [newClientLoading, setNewClientLoading] = useState(false);
 
   // Court directory states
   const [courtName, setCourtName] = useState('');
@@ -82,6 +90,95 @@ export default function AddCaseScreen({ navigation, selectView }) {
       unsubscribe();
     };
   }, [navigation]);
+
+  useKeyboardShortcuts({
+    'escape': () => {
+      setShowTypeModal(false);
+      setShowClientModal(false);
+      setShowNewClientForm(false);
+    }
+  });
+
+  const handleAddNewClient = async () => {
+    if (!newClientName.trim()) {
+      Alert.alert('Validation Error', 'Full Name is required.');
+      return;
+    }
+    if (/[^a-zA-Z\s]/.test(newClientName)) {
+      Alert.alert('Validation Error', 'Full Name must contain only letters and spaces.');
+      return;
+    }
+    if (newClientPhone && /[^0-9]/.test(newClientPhone)) {
+      Alert.alert('Validation Error', 'Phone number must contain only numbers.');
+      return;
+    }
+
+    setNewClientLoading(true);
+    try {
+      let user = supabase.auth.currentUser;
+      if (!user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        user = session?.user;
+      }
+      if (!user) {
+        Alert.alert('Authentication Error', 'Please log in again.');
+        setNewClientLoading(false);
+        return;
+      }
+
+      const { data: memberData } = await supabase
+        .from('firm_members')
+        .select('role, firm_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (memberData?.role === 'paralegal') {
+        Alert.alert('Permission Denied', 'Paralegals are not authorized to create client profiles.');
+        setNewClientLoading(false);
+        return;
+      }
+
+      const { data: createdClient, error } = await supabase
+        .from('clients')
+        .insert({
+          user_id: user.id,
+          firm_id: memberData?.firm_id || null,
+          full_name: newClientName.trim(),
+          phone: newClientPhone.trim() || null,
+          email: newClientEmail.trim().toLowerCase() || null,
+          address: newClientAddress.trim() || null,
+          notes: newClientNotes.trim() || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        Alert.alert('Error adding client', error.message);
+      } else {
+        setClientId(createdClient.id);
+        setClientName(createdClient.full_name);
+        
+        const { data: clientsData } = await supabase
+          .from('clients')
+          .select('id, full_name')
+          .order('full_name', { ascending: true });
+        if (clientsData) setClients(clientsData);
+
+        setNewClientName('');
+        setNewClientPhone('');
+        setNewClientEmail('');
+        setNewClientAddress('');
+        setNewClientNotes('');
+        setShowNewClientForm(false);
+        Alert.alert('Success', `Client profile created and selected: ${createdClient.full_name}`);
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'An unexpected error occurred.');
+    } finally {
+      setNewClientLoading(false);
+    }
+  };
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -294,37 +391,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
             </TouchableOpacity>
           </View>
 
-          {/* COURT SELECTION */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSub }]}>Court *</Text>
-            <TouchableOpacity
-              style={[styles.pickerTrigger, { backgroundColor: colors.background, borderColor: colors.border }]}
-              onPress={() => setShowCourtModal(true)}
-              disabled={loading}
-            >
-              <Text style={[styles.pickerTriggerText, { color: courtName ? colors.text : colors.textSub }]}>
-                {courtName || 'Select Court from Directory...'}
-              </Text>
-              <Ionicons name="business" size={18} color={colors.textSub} />
-            </TouchableOpacity>
-          </View>
 
-          {/* COURTROOM SELECTION */}
-          {courtName ? (
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSub }]}>Courtroom / Hall *</Text>
-              <TouchableOpacity
-                style={[styles.pickerTrigger, { backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={() => setShowCourtroomModal(true)}
-                disabled={loading}
-              >
-                <Text style={[styles.pickerTriggerText, { color: courtroom ? colors.text : colors.textSub }]}>
-                  {courtroom || 'Select Courtroom...'}
-                </Text>
-                <Ionicons name="chevron-down" size={18} color={colors.textSub} />
-              </TouchableOpacity>
-            </View>
-          ) : null}
 
           {/* DATE FILED */}
           <View style={styles.inputGroup}>
@@ -536,6 +603,27 @@ export default function AddCaseScreen({ navigation, selectView }) {
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.background,
+                padding: 10,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+                marginHorizontal: 16,
+                marginVertical: 10,
+              }}
+              onPress={() => {
+                setShowClientModal(false);
+                setShowNewClientForm(true);
+              }}
+            >
+              <Ionicons name="person-add-outline" size={16} color={colors.accent} style={{ marginRight: 6 }} />
+              <Text style={{ color: colors.accent, fontWeight: 'bold', fontSize: 13 }}>+ Create New Client</Text>
+            </TouchableOpacity>
             {clients.length > 0 ? (
               <FlatList
                 data={clients}
@@ -578,6 +666,107 @@ export default function AddCaseScreen({ navigation, selectView }) {
             )}
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* NEW CLIENT REGISTRATION MODAL */}
+      <Modal visible={showNewClientForm} transparent animationType="slide">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, maxHeight: '80%' }]}>
+            <View style={[styles.modalHeader, { borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>New Client Registration</Text>
+              <TouchableOpacity onPress={() => setShowNewClientForm(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={true}>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSub }]}>Full Name *</Text>
+                <TextInput
+                  style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
+                  placeholder="Enter client's full name"
+                  placeholderTextColor={colors.textSub}
+                  value={newClientName}
+                  onChangeText={setNewClientName}
+                  editable={!newClientLoading}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSub }]}>Phone Number</Text>
+                <TextInput
+                  style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
+                  placeholder="e.g. 9876543210"
+                  placeholderTextColor={colors.textSub}
+                  value={newClientPhone}
+                  onChangeText={setNewClientPhone}
+                  keyboardType="numeric"
+                  editable={!newClientLoading}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSub }]}>Email Address</Text>
+                <TextInput
+                  style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
+                  placeholder="e.g. client@example.com"
+                  placeholderTextColor={colors.textSub}
+                  value={newClientEmail}
+                  onChangeText={setNewClientEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!newClientLoading}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSub }]}>Address</Text>
+                <TextInput
+                  style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
+                  placeholder="Client's mailing address"
+                  placeholderTextColor={colors.textSub}
+                  value={newClientAddress}
+                  onChangeText={setNewClientAddress}
+                  editable={!newClientLoading}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSub }]}>Notes</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
+                  placeholder="Case backgrounds, referral info, etc."
+                  placeholderTextColor={colors.textSub}
+                  value={newClientNotes}
+                  onChangeText={setNewClientNotes}
+                  multiline
+                  numberOfLines={3}
+                  editable={!newClientLoading}
+                />
+              </View>
+
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  styles.saveButton,
+                  { backgroundColor: colors.accent, marginTop: 10 },
+                  hovered && { transform: [{ translateY: -2 }] },
+                  pressed && { opacity: 0.8 }
+                ]}
+                onPress={handleAddNewClient}
+                disabled={newClientLoading}
+              >
+                {newClientLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Create & Select Client</Text>
+                )}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* COURT PICKER MODAL */}

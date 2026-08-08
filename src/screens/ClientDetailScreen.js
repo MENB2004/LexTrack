@@ -19,12 +19,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import Sidebar from '../components/Sidebar';
+import { useKeyboardShortcuts } from '../utils/shortcuts';
 import { useTheme } from '../context/ThemeContext';
 
 export default function ClientDetailScreen({ route, navigation }) {
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width > 768;
+
+  useKeyboardShortcuts({
+    'escape': () => {
+      setShowEditModal(false);
+    }
+  });
+
   const { clientId } = route.params;
   const [client, setClient] = useState(null);
   const [cases, setCases] = useState([]);
@@ -143,6 +151,31 @@ export default function ClientDetailScreen({ route, navigation }) {
       }
     } catch (err) {
       console.error(err);
+    }
+
+    if (Platform.OS === 'web') {
+      const confirmDelete = window.confirm('Are you sure you want to delete this client? Linked cases will not be deleted but will be unlinked.');
+      if (confirmDelete) {
+        setLoading(true);
+        try {
+          const { error } = await supabase
+            .from('clients')
+            .delete()
+            .eq('id', clientId);
+
+          if (error) {
+            alert('Error deleting client: ' + error.message);
+            setLoading(false);
+          } else {
+            navigation.goBack();
+          }
+        } catch (err) {
+          console.error(err);
+          alert('An unexpected error occurred during deletion.');
+          setLoading(false);
+        }
+      }
+      return;
     }
 
     Alert.alert(

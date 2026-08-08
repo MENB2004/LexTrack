@@ -18,11 +18,19 @@ import {
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useKeyboardShortcuts } from '../utils/shortcuts';
 
 export default function ClientListScreen({ navigation }) {
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width > 768;
+
+  useKeyboardShortcuts({
+    'escape': () => {
+      setShowAddModal(false);
+    }
+  });
+
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

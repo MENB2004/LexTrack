@@ -1,0 +1,5 @@
+{
+  "entrypoint_path": "index.ts",
+  "name": "send-daily-digest",
+  "verify_jwt": false
+}

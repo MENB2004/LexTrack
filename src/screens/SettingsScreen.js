@@ -68,7 +68,7 @@ export default function SettingsScreen() {
 
         const { data, error } = await supabase
           .from('profiles')
-          .select('full_name, bar_number, specialty, phone, email')
+          .select('full_name, bar_number, specialty, phone, email, digest_enabled')
           .eq('id', userId)
           .single();
 
@@ -79,6 +79,12 @@ export default function SettingsScreen() {
           setBarNumber(data.bar_number || '');
           setSpecialty(data.specialty || '');
           setPhone(data.phone || '');
+          
+          // Sync digest toggle from server
+          if (typeof data.digest_enabled === 'boolean') {
+            setDigestEnabled(data.digest_enabled);
+            await AsyncStorage.setItem('notif_digest', data.digest_enabled ? 'true' : 'false');
+          }
           
           if (!data.email && session?.user?.email) {
             await supabase
@@ -101,6 +107,27 @@ export default function SettingsScreen() {
   const handleToggleDigest = async (value) => {
     setDigestEnabled(value);
     await AsyncStorage.setItem('notif_digest', value ? 'true' : 'false');
+
+    // Sync to Supabase so the Edge Function knows who opted in
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id || supabase.auth.currentUser?.id;
+      if (userId) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ digest_enabled: value })
+          .eq('id', userId);
+        if (error) {
+          console.error('Error saving digest preference:', error.message);
+          // Revert on failure
+          setDigestEnabled(!value);
+          await AsyncStorage.setItem('notif_digest', !value ? 'true' : 'false');
+          Alert.alert('Error', 'Could not update email digest preference. Please try again.');
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling digest:', err);
+    }
   };
 
   const handleToggleReminders = async (value) => {

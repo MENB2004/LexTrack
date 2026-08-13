@@ -1,0 +1,5 @@
+{
+  "entrypoint_path": "index.ts",
+  "name": "email-verified",
+  "verify_jwt": false
+}

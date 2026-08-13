@@ -103,7 +103,7 @@ export default function SignUpScreen({ navigation }) {
         email: email.trim().toLowerCase(),
         password: password,
         options: {
-          emailRedirectTo: 'https://wfspwemzbprucailzuvr.supabase.co/storage/v1/object/public/public-assets/email-verified.html',
+          emailRedirectTo: 'https://menb2004.github.io/LexTrack/email-verified.html',
         },
       });
 

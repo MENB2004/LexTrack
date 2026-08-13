@@ -1,4 +1,8 @@
-<!DOCTYPE html>
+// @ts-nocheck
+// Supabase Edge Function: email-verified
+// Serves the premium HTML confirmation page with proper Content-Type: text/html headers
+
+const HTML_CONTENT = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -193,4 +197,13 @@
         </div>
     </div>
 </body>
-</html>
+</html>`;
+
+Deno.serve(async (_req: Request) => {
+  return new Response(HTML_CONTENT, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+    },
+  });
+});

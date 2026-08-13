@@ -69,7 +69,14 @@ export default function ClientListScreen({ navigation }) {
 
   useEffect(() => {
     fetchClients();
-  }, [fetchClients]);
+
+    // Re-fetch clients when screen regains focus (e.g. after deleting a client)
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchClients();
+    });
+
+    return () => unsubscribe();
+  }, [fetchClients, navigation]);
 
   const handleAddClient = async () => {
     if (!fullName.trim()) {
@@ -82,6 +89,14 @@ export default function ClientListScreen({ navigation }) {
     }
     if (phone && /[^0-9]/.test(phone)) {
       Alert.alert('Validation Error', 'Phone number must contain only numbers.');
+      return;
+    }
+    if (phone && phone.length < 10) {
+      Alert.alert('Validation Error', 'Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert('Validation Error', 'Please enter a valid email address (e.g. name@domain.com).');
       return;
     }
 
@@ -295,7 +310,7 @@ export default function ClientListScreen({ navigation }) {
 
               {/* EMAIL */}
               <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.textSub }]}>Email Address</Text>
+                <Text style={[styles.label, { color: colors.textSub }]}>Email</Text>
                 <TextInput
                   style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
                   placeholder="e.g. mike@pearsonhardman.com"

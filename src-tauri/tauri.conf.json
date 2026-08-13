@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "LexTrack",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "identifier": "com.lextrack96steam.lextrack",
   "build": {
     "frontendDist": "../dist",
@@ -31,6 +31,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": false,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,6 +41,14 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFBOTFFNDc0ODA2RDdFREUKUldUZWZtMkFkT1NScWs3cnhjS2I1WUFMYkM0U0pTblFqTUpoamExUmtXZUdJNm8zODdXNnQ1S0cK",
+      "endpoints": [
+        "https://github.com/MENB2004/LexTrack/releases/latest/download/latest.json"
+      ]
     }
   }
 }

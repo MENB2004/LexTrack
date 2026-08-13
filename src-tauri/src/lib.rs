@@ -12,6 +12,13 @@ pub fn run() {
         )?;
       }
 
+      // Register auto-updater and process (relaunch) plugins
+      #[cfg(desktop)]
+      {
+        app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+        app.handle().plugin(tauri_plugin_process::init())?;
+      }
+
       // Create tray menu items using MenuBuilder and MenuItemBuilder in Tauri v2
       let show_i = tauri::menu::MenuItemBuilder::new("Show LexTrack")
           .id("show")

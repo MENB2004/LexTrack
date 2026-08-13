@@ -1,6 +1,6 @@
 {
   "name": "lextrack",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
@@ -17,6 +17,8 @@
     "@react-navigation/native": "^6.1.17",
     "@react-navigation/stack": "^6.3.29",
     "@supabase/supabase-js": "^2.43.4",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "expo": "~54.0.0",
     "expo-device": "~8.0.10",
     "expo-notifications": "~0.32.17",

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, ActivityIndicator, StatusBar, Platform, Alert } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, StatusBar, Platform, Alert, Modal, Text, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { supabase } from './lib/supabase';
 import AuthNavigator from './src/navigation/AuthNavigator';
@@ -12,10 +12,40 @@ const Updates = Platform.OS !== 'web' ? require('expo-updates') : null;
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import TitleBar from './src/components/TitleBar';
 
+// Global reference to open the custom Web Alert Modal
+let alertShowCallback = null;
+
+if (Platform.OS === 'web') {
+  const originalAlert = Alert.alert;
+  Alert.alert = (title, message, buttons, options) => {
+    if (alertShowCallback) {
+      alertShowCallback({ title, message, buttons, options });
+    } else {
+      console.warn('Global Web Alert triggered before app initialization:', title, message);
+      if (originalAlert) {
+        originalAlert(title, message, buttons, options);
+      }
+    }
+  };
+}
+
 function AppContent() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const { isDark, colors } = useTheme();
+  const [globalAlert, setGlobalAlert] = useState(null);
+
+  // Hook Alert.alert trigger to this component's state
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      alertShowCallback = (config) => {
+        setGlobalAlert(config);
+      };
+    }
+    return () => {
+      alertShowCallback = null;
+    };
+  }, []);
 
   // Inject custom scrollbar style for desktop/web
   useEffect(() => {
@@ -129,6 +159,58 @@ function AppContent() {
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
         {session ? <MainNavigator /> : <AuthNavigator />}
       </NavigationContainer>
+
+      {/* GLOBAL CUSTOM ALERT MODAL (Prevents 'tauri.localhost says') */}
+      {Platform.OS === 'web' && globalAlert && (
+        <Modal transparent visible={!!globalAlert} animationType="fade">
+          <View style={styles.alertOverlay}>
+            <View style={[styles.alertContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.alertTitle, { color: colors.text }]}>
+                {globalAlert.title}
+              </Text>
+              {globalAlert.message ? (
+                <Text style={[styles.alertSubtitle, { color: colors.textSub }]}>
+                  {globalAlert.message}
+                </Text>
+              ) : null}
+
+              <View style={styles.alertActions}>
+                {(globalAlert.buttons && globalAlert.buttons.length > 0
+                  ? globalAlert.buttons
+                  : [{ text: 'OK' }]
+                ).map((btn, index) => {
+                  const isDestructive = btn.style === 'destructive' || btn.text?.toLowerCase().includes('delete') || btn.text?.toLowerCase().includes('permanently');
+                  const isCancel = btn.style === 'cancel' || btn.text?.toLowerCase().includes('cancel') || btn.text?.toLowerCase().includes('later');
+                  
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.alertBtn,
+                        isDestructive && { backgroundColor: colors.danger },
+                        !isDestructive && !isCancel && { backgroundColor: colors.accent },
+                        isCancel && { borderColor: colors.border, borderWidth: 1 }
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setGlobalAlert(null);
+                        if (btn.onPress) btn.onPress();
+                      }}
+                    >
+                      <Text style={[
+                        styles.alertBtnText,
+                        isCancel ? { color: colors.textSub } : { color: '#ffffff' }
+                      ]}>
+                        {btn.text}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </GestureHandlerRootView>
   );
 }
@@ -148,5 +230,53 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 9999,
+  },
+  alertContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  alertSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  alertActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  alertBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

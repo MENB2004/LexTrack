@@ -20,6 +20,8 @@ import { supabase } from '../../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
+const APP_VERSION = '1.0.2';
+
 export default function SettingsScreen() {
   const { isDark, toggle, colors } = useTheme();
   const { width } = useWindowDimensions();
@@ -107,24 +109,6 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
-    if (Platform.OS === 'web') {
-      const confirmSignOut = window.confirm('Are you sure you want to sign out of LexTrack?');
-      if (confirmSignOut) {
-        setLogoutLoading(true);
-        try {
-          const { error } = await supabase.auth.signOut();
-          if (error) {
-            alert('Error signing out: ' + error.message);
-          }
-        } catch (err) {
-          console.error(err);
-        } finally {
-          setLogoutLoading(false);
-        }
-      }
-      return;
-    }
-
     Alert.alert(
       'Log Out',
       'Are you sure you want to sign out of LexTrack?',
@@ -151,6 +135,8 @@ export default function SettingsScreen() {
     );
   };
 
+
+
   const handleSaveProfile = async () => {
     if (!editFullName.trim()) {
       Alert.alert('Validation Error', 'Full Name is required.');
@@ -162,6 +148,10 @@ export default function SettingsScreen() {
     }
     if (editPhone && /[^0-9]/.test(editPhone)) {
       Alert.alert('Validation Error', 'Contact Phone must contain only numbers.');
+      return;
+    }
+    if (editPhone && editPhone.length < 10) {
+      Alert.alert('Validation Error', 'Phone number must be exactly 10 digits.');
       return;
     }
     setEditLoading(true);
@@ -324,8 +314,8 @@ export default function SettingsScreen() {
 
         {/* INFO FOOTER */}
         <View style={styles.footer}>
-          <Text style={styles.infoText}>LexTrack Secure Case Manager</Text>
-          <Text style={styles.versionText}>Version 1.0.0 (Expo SDK 54)</Text>
+          <Text style={styles.infoText}>LexTrack Counsel Portal</Text>
+          <Text style={styles.versionText}>v{APP_VERSION} Stable</Text>
         </View>
       </View>
       </ScrollView>
@@ -369,7 +359,7 @@ export default function SettingsScreen() {
                 placeholder="e.g. Corporate Law / Family Law"
                 placeholderTextColor={colors.textSub}
                 value={editSpecialty}
-                onChangeText={setEditSpecialty}
+                onChangeText={(text) => setEditSpecialty(text.replace(/[^a-zA-Z\s\/,&.]/g, ''))}
               />
             </View>
 

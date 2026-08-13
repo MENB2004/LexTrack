@@ -56,11 +56,13 @@ export default function WebDatePicker({
     handleClose();
   };
 
-  // Helper to format date display (e.g. MM/DD/YYYY)
+  // Helper to format date display (e.g. 10 Aug 2026)
   const formatDate = (date) => {
     if (!date) return '';
     const d = new Date(date);
-    return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
+    const monthAbbr = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return `${dayNames[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')} ${monthAbbr[d.getMonth()]} ${d.getFullYear()}`;
   };
 
   const year = viewDate.getFullYear();
@@ -296,11 +298,10 @@ const styles = StyleSheet.create({
   },
   weekdaysRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 8,
   },
   weekdayText: {
-    width: 38,
+    width: '14.28%',
     textAlign: 'center',
     fontWeight: '600',
     fontSize: 13,
@@ -308,17 +309,16 @@ const styles = StyleSheet.create({
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
   },
   dayCell: {
-    width: 38,
+    width: '14.28%',
     height: 38,
     justifyContent: 'center',
     alignItems: 'center',
     marginVertical: 2,
   },
   dayCellEmpty: {
-    width: 38,
+    width: '14.28%',
     height: 38,
     marginVertical: 2,
   },

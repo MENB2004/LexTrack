@@ -47,6 +47,10 @@ export default function ClientDetailScreen({ route, navigation }) {
   const [editNotes, setEditNotes] = useState('');
   const [editLoading, setEditLoading] = useState(false);
 
+  // Delete confirmation modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const fetchClientData = async () => {
     try {
       const { data: clientData, error: clientError } = await supabase
@@ -104,6 +108,14 @@ export default function ClientDetailScreen({ route, navigation }) {
       Alert.alert('Validation Error', 'Phone number must contain only numbers.');
       return;
     }
+    if (editPhone && editPhone.length < 10) {
+      Alert.alert('Validation Error', 'Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) {
+      Alert.alert('Validation Error', 'Please enter a valid email address (e.g. name@domain.com).');
+      return;
+    }
 
     setEditLoading(true);
     try {
@@ -147,62 +159,32 @@ export default function ClientDetailScreen({ route, navigation }) {
 
       if (memberData?.role === 'paralegal' || memberData?.role === 'associate') {
         Alert.alert('Permission Denied', 'Only firm owners/partners can delete client records.');
+        setShowDeleteModal(false);
         return;
       }
     } catch (err) {
       console.error(err);
     }
 
-    if (Platform.OS === 'web') {
-      const confirmDelete = window.confirm('Are you sure you want to delete this client? Linked cases will not be deleted but will be unlinked.');
-      if (confirmDelete) {
-        setLoading(true);
-        try {
-          const { error } = await supabase
-            .from('clients')
-            .delete()
-            .eq('id', clientId);
+    setDeleteLoading(true);
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', clientId);
 
-          if (error) {
-            alert('Error deleting client: ' + error.message);
-            setLoading(false);
-          } else {
-            navigation.goBack();
-          }
-        } catch (err) {
-          console.error(err);
-          alert('An unexpected error occurred during deletion.');
-          setLoading(false);
-        }
+      if (error) {
+        Alert.alert('Error deleting client', error.message);
+      } else {
+        setShowDeleteModal(false);
+        navigation.goBack();
       }
-      return;
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'An unexpected error occurred during deletion.');
+    } finally {
+      setDeleteLoading(false);
     }
-
-    Alert.alert(
-      'Delete Client',
-      'Are you sure you want to delete this client? Linked cases will not be deleted but will be unlinked.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            const { error } = await supabase
-              .from('clients')
-              .delete()
-              .eq('id', clientId);
-
-            if (error) {
-              Alert.alert('Error deleting client', error.message);
-              setLoading(false);
-            } else {
-              navigation.goBack();
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handleCall = () => {
@@ -370,7 +352,7 @@ export default function ClientDetailScreen({ route, navigation }) {
             hovered && { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)' },
             pressed && { opacity: 0.8 }
           ]}
-          onPress={handleDeleteClient}
+          onPress={() => setShowDeleteModal(true)}
         >
           <Ionicons name="trash-outline" size={20} color={colors.danger} style={{ marginRight: 8 }} />
           <Text style={[styles.deleteText, { color: colors.danger }]}>Delete Client Record</Text>
@@ -485,6 +467,55 @@ export default function ClientDetailScreen({ route, navigation }) {
                 </Pressable>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* DELETE CLIENT CONFIRMATION MODAL */}
+      <Modal visible={showDeleteModal} transparent animationType="fade">
+        <View style={[styles.modalOverlay, { justifyContent: 'center', paddingHorizontal: 20 }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16 }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete Client</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>
+              Are you sure you want to delete this client? Linked cases will not be deleted but will be unlinked.
+            </Text>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  styles.cancelBtn,
+                  { borderColor: colors.border },
+                  hovered && { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' },
+                  pressed && { opacity: 0.7 }
+                ]}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={deleteLoading}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.textSub }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  styles.saveBtn,
+                  { backgroundColor: colors.danger },
+                  hovered && {
+                    transform: [{ translateY: -2 }],
+                    shadowColor: colors.danger,
+                    shadowOpacity: 0.2,
+                    shadowRadius: 6,
+                    shadowOffset: { width: 0, height: 3 },
+                  },
+                  pressed && { opacity: 0.8 }
+                ]}
+                onPress={handleDeleteClient}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Delete Permanently</Text>
+                )}
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>

@@ -52,9 +52,15 @@ export default function CaseDetailScreen({ route, navigation }) {
 
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [newHearingDate, setNewHearingDate] = useState(new Date());
-  const [locationText, setLocationText] = useState('');
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Delete confirmation modal (replaces window.confirm to avoid localhost URL)
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Reopen case loading
+  const [reopenLoading, setReopenLoading] = useState(false);
 
   // Edit Notes States
   const [showEditNotesModal, setShowEditNotesModal] = useState(false);
@@ -182,90 +188,41 @@ export default function CaseDetailScreen({ route, navigation }) {
   };
 
   const handleDeleteCase = async () => {
-    if (Platform.OS === 'web') {
-      const confirmDelete = window.confirm('Are you sure you want to permanently delete this case record? This action cannot be undone.');
-      if (confirmDelete) {
-        try {
-          const { error } = await supabase
-            .from('cases')
-            .delete()
-            .eq('id', caseId);
+    setDeleteLoading(true);
+    try {
+      const { error } = await supabase
+        .from('cases')
+        .delete()
+        .eq('id', caseId);
 
-          if (error) {
-            alert('Error: ' + error.message);
-          } else {
-            await cancelPriorityAlarms(caseId);
-            alert('The case has been permanently deleted.');
-            navigation.goBack();
-          }
-        } catch (err) {
-          console.error(err);
-          alert('An unexpected error occurred during deletion.');
-        }
+      if (error) {
+        Alert.alert('Error', error.message);
+      } else {
+        await cancelPriorityAlarms(caseId);
+        setShowDeleteModal(false);
+        Alert.alert(
+          'Case Deleted',
+          'The case has been permanently deleted.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
       }
-      return;
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'An unexpected error occurred during deletion.');
+    } finally {
+      setDeleteLoading(false);
     }
-
-    Alert.alert(
-      'Delete Case',
-      'Are you sure you want to permanently delete this case record? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('cases')
-                .delete()
-                .eq('id', caseId);
-
-              if (error) {
-                Alert.alert('Error', error.message);
-              } else {
-                // Cancel priority alarms
-                await cancelPriorityAlarms(caseId);
-
-                // Show success notification
-                Alert.alert(
-                  'Case Deleted',
-                  'The case has been permanently deleted.',
-                  [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        navigation.goBack();
-                      },
-                    },
-                  ]
-                );
-              }
-            } catch (err) {
-              console.error(err);
-              Alert.alert('Error', 'An unexpected error occurred during deletion.');
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handleScheduleHearing = async () => {
-    if (!selectedCourtName) {
-      Alert.alert('Validation Error', 'Please select a Court from the directory.');
-      return;
-    }
     setScheduleLoading(true);
     try {
-      const dateFormatted = newHearingDate.toISOString().split('T')[0];
+      const dateFormatted = `${newHearingDate.getFullYear()}-${String(newHearingDate.getMonth() + 1).padStart(2, '0')}-${String(newHearingDate.getDate()).padStart(2, '0')}`;
       
       const { error } = await supabase
         .from('cases')
         .update({
           next_hearing_date: dateFormatted,
-          court_name: selectedCourtName,
-          courtroom: selectedCourtroom || null,
         })
         .eq('id', caseId);
 
@@ -273,15 +230,13 @@ export default function CaseDetailScreen({ route, navigation }) {
         Alert.alert('Error', error.message);
       } else {
         // Log Activity
-        await logActivity(caseId, 'hearing_scheduled', `Hearing scheduled on ${dateFormatted} at ${selectedCourtName} - ${selectedCourtroom || 'Main Hall'}.`);
+        await logActivity(caseId, 'hearing_scheduled', `Next hearing scheduled on ${dateFormatted}.`);
 
         await cancelPriorityAlarms(caseId);
         
         const updatedCase = {
           ...caseData,
           next_hearing_date: dateFormatted,
-          court_name: selectedCourtName,
-          courtroom: selectedCourtroom || null,
         };
 
         if (caseData.is_priority) {
@@ -297,6 +252,44 @@ export default function CaseDetailScreen({ route, navigation }) {
       console.error(err);
     } finally {
       setScheduleLoading(false);
+    }
+  };
+
+  const handleReopenCase = async () => {
+    setReopenLoading(true);
+    try {
+      const { error } = await supabase
+        .from('cases')
+        .update({
+          status: 'Active',
+          closing_note: null,
+          closed_at: null,
+        })
+        .eq('id', caseId);
+
+      if (error) {
+        Alert.alert('Error', error.message);
+      } else {
+        // Log Activity
+        await logActivity(caseId, 'reopened', 'Case has been reopened and set back to Active status.');
+
+        // Reschedule alarms if there's a hearing date
+        const updatedCase = { ...caseData, status: 'Active', closing_note: null, closed_at: null };
+        if (updatedCase.next_hearing_date) {
+          if (updatedCase.is_priority) {
+            await schedulePriorityAlarms(updatedCase);
+          } else {
+            await scheduleRegularAlarms(updatedCase);
+          }
+        }
+
+        fetchCaseDetails();
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'An unexpected error occurred.');
+    } finally {
+      setReopenLoading(false);
     }
   };
 
@@ -568,6 +561,34 @@ export default function CaseDetailScreen({ route, navigation }) {
             </>
           )}
 
+          {caseData.status === 'Closed' && (
+            <Pressable
+              style={({ hovered, pressed }) => [
+                styles.scheduleButton,
+                { backgroundColor: colors.success },
+                hovered && {
+                  transform: [{ translateY: -2 }],
+                  shadowColor: colors.success,
+                  shadowOpacity: 0.2,
+                  shadowRadius: 6,
+                  shadowOffset: { width: 0, height: 3 },
+                },
+                pressed && { opacity: 0.8 }
+              ]}
+              onPress={handleReopenCase}
+              disabled={reopenLoading}
+            >
+              {reopenLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <>
+                  <Ionicons name="refresh" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                  <Text style={styles.scheduleButtonText}>Reopen Case</Text>
+                </>
+              )}
+            </Pressable>
+          )}
+
           {userRole === 'owner' && (
             <Pressable
               style={({ hovered, pressed }) => [
@@ -576,7 +597,7 @@ export default function CaseDetailScreen({ route, navigation }) {
                 hovered && { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)' },
                 pressed && { opacity: 0.8 }
               ]}
-              onPress={handleDeleteCase}
+              onPress={() => setShowDeleteModal(true)}
             >
               <Ionicons name="trash-outline" size={20} color={colors.danger} style={{ marginRight: 8 }} />
               <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Delete Case Record</Text>
@@ -607,6 +628,9 @@ export default function CaseDetailScreen({ route, navigation }) {
                 } else if (act.action_type === 'closed') {
                   iconName = 'lock-closed';
                   iconColor = colors.danger;
+                } else if (act.action_type === 'reopened') {
+                  iconName = 'refresh';
+                  iconColor = colors.success;
                 }
 
                 return (
@@ -693,7 +717,7 @@ export default function CaseDetailScreen({ route, navigation }) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Schedule Next Hearing</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>Select the new hearing date and optional location.</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>Select the date for the next hearing.</Text>
 
             {Platform.OS === 'web' ? (
               <WebDatePicker
@@ -730,29 +754,7 @@ export default function CaseDetailScreen({ route, navigation }) {
               </>
             )}
 
-            {/* COURT VENUE SELECTOR */}
-            <TouchableOpacity
-              style={[styles.dateSelector, { marginTop: 16, backgroundColor: colors.background, borderColor: colors.border }]}
-              onPress={() => setShowCourtModal(true)}
-            >
-              <Ionicons name="business-outline" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
-              <Text style={[styles.dateText, { color: selectedCourtName ? colors.text : colors.textSub }]}>
-                {selectedCourtName || 'Select Court Venue...'}
-              </Text>
-            </TouchableOpacity>
 
-            {/* COURTROOM SELECTOR */}
-            {selectedCourtName ? (
-              <TouchableOpacity
-                style={[styles.dateSelector, { marginTop: 16, backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={() => setShowCourtroomModal(true)}
-              >
-                <Ionicons name="chevron-down" size={20} color={colors.textSub} style={{ marginRight: 8 }} />
-                <Text style={[styles.dateText, { color: selectedCourtroom ? colors.text : colors.textSub }]}>
-                  {selectedCourtroom || 'Select Courtroom/Hall...'}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -896,6 +898,39 @@ export default function CaseDetailScreen({ route, navigation }) {
                   <ActivityIndicator color="#ffffff" />
                 ) : (
                   <Text style={styles.confirmSaveText}>Save Notes</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <Modal visible={showDeleteModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete Case</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>
+              Are you sure you want to permanently delete this case record? This action cannot be undone.
+            </Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={deleteLoading}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.textSub }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmCloseBtn, { backgroundColor: colors.danger }]}
+                onPress={handleDeleteCase}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmCloseText}>Delete Permanently</Text>
                 )}
               </TouchableOpacity>
             </View>

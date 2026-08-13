@@ -27,11 +27,13 @@ export default function CalendarScreen({ navigation }) {
 
       // Start & end date of the target month
       const startOfMonth = `${year}-${String(month).padStart(2, '0')}-01`;
-      const endOfMonth = `${year}-${String(month).padStart(2, '0')}-31`; // SQL handles dates gracefully
+      const lastDay = new Date(year, month, 0).getDate(); // Correct last day of month
+      const endOfMonth = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
       const { data, error } = await supabase
         .from('cases')
         .select('id, case_number, client_name, case_type, status, is_priority, next_hearing_date')
+        .eq('status', 'Active')
         .gte('next_hearing_date', startOfMonth)
         .lte('next_hearing_date', endOfMonth)
         .eq('user_id', currentUserId);
@@ -48,15 +50,11 @@ export default function CalendarScreen({ navigation }) {
           acc[date] = {
             count: 0,
             hasPriority: false,
-            allClosed: true,
           };
         }
         acc[date].count += 1;
         if (caseItem.is_priority) {
           acc[date].hasPriority = true;
-        }
-        if (caseItem.status === 'Active') {
-          acc[date].allClosed = false;
         }
         return acc;
       }, {});
@@ -65,7 +63,7 @@ export default function CalendarScreen({ navigation }) {
       const markings = {};
       Object.keys(grouped).forEach((date) => {
         const info = grouped[date];
-        const dotColor = info.allClosed ? '#10b981' : '#c084fc'; // Green dot for closed-only, purple for active hearings
+        const dotColor = '#c084fc'; // Purple dot for active case hearings
 
         markings[date] = {
           marked: true,
@@ -77,10 +75,10 @@ export default function CalendarScreen({ navigation }) {
               borderRadius: 18,
               justifyContent: 'center',
               alignItems: 'center',
+              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.12)',
             },
             text: {
-              color: '#f8fafc',
-              fontWeight: '600',
+              fontWeight: '700',
             },
           },
         };
@@ -92,7 +90,7 @@ export default function CalendarScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isDark]);
 
   // Initial load
   useEffect(() => {
@@ -170,10 +168,6 @@ export default function CalendarScreen({ navigation }) {
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: '#c084fc' }]} />
             <Text style={[styles.legendText, { color: colors.text }]}>Active Case Hearings</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
-            <Text style={[styles.legendText, { color: colors.text }]}>Closed Cases Only</Text>
           </View>
         </View>
       </View>

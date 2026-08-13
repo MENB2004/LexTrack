@@ -112,6 +112,14 @@ export default function AddCaseScreen({ navigation, selectView }) {
       Alert.alert('Validation Error', 'Phone number must contain only numbers.');
       return;
     }
+    if (newClientPhone && newClientPhone.length < 10) {
+      Alert.alert('Validation Error', 'Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (newClientEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClientEmail.trim())) {
+      Alert.alert('Validation Error', 'Please enter a valid email address (e.g. name@domain.com).');
+      return;
+    }
 
     setNewClientLoading(true);
     try {
@@ -249,10 +257,11 @@ export default function AddCaseScreen({ navigation, selectView }) {
         return;
       }
 
-      // Format dates correctly for database storage (YYYY-MM-DD)
-      const dateFiledFormatted = dateFiled.toISOString().split('T')[0];
+      // Format dates correctly for database storage (YYYY-MM-DD) using LOCAL time
+      const formatLocalDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dateFiledFormatted = formatLocalDate(dateFiled);
       const nextHearingFormatted = nextHearingDate 
-        ? nextHearingDate.toISOString().split('T')[0]
+        ? formatLocalDate(nextHearingDate)
         : null;
 
       const { data: newCase, error } = await supabase
@@ -578,7 +587,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
                     setShowTypeModal(false);
                   }}
                 >
-                  <Text style={[styles.modalItemText, caseType === item && styles.modalItemTextActive]}>
+                  <Text style={[styles.modalItemText, { color: colors.text }, caseType === item && styles.modalItemTextActive]}>
                     {item}
                   </Text>
                   {caseType === item && <Ionicons name="checkmark" size={20} color="#38bdf8" />}
@@ -641,7 +650,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
                       setShowClientModal(false);
                     }}
                   >
-                    <Text style={[styles.modalItemText, clientId === item.id && styles.modalItemTextActive]}>
+                    <Text style={[styles.modalItemText, { color: colors.text }, clientId === item.id && styles.modalItemTextActive]}>
                       {item.full_name}
                     </Text>
                     {clientId === item.id && <Ionicons name="checkmark" size={20} color="#38bdf8" />}
@@ -690,26 +699,32 @@ export default function AddCaseScreen({ navigation, selectView }) {
                   placeholder="Enter client's full name"
                   placeholderTextColor={colors.textSub}
                   value={newClientName}
-                  onChangeText={setNewClientName}
+                  onChangeText={(text) => setNewClientName(text.replace(/[^a-zA-Z\s]/g, ''))}
                   editable={!newClientLoading}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: colors.textSub }]}>Phone Number</Text>
-                <TextInput
-                  style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
-                  placeholder="e.g. 9876543210"
-                  placeholderTextColor={colors.textSub}
-                  value={newClientPhone}
-                  onChangeText={setNewClientPhone}
-                  keyboardType="numeric"
-                  editable={!newClientLoading}
-                />
+                <View style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0 }]}>
+                  <View style={{ paddingHorizontal: 12, paddingVertical: 12, borderRightWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.textSub, fontSize: 14, fontWeight: '600' }}>+91</Text>
+                  </View>
+                  <TextInput
+                    style={{ flex: 1, color: colors.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 12 }}
+                    placeholder="e.g. 9876543210"
+                    placeholderTextColor={colors.textSub}
+                    value={newClientPhone}
+                    onChangeText={(text) => setNewClientPhone(text.replace(/[^0-9]/g, ''))}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    editable={!newClientLoading}
+                  />
+                </View>
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.textSub }]}>Email Address</Text>
+                <Text style={[styles.label, { color: colors.textSub }]}>Email</Text>
                 <TextInput
                   style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
                   placeholder="e.g. client@example.com"
@@ -723,7 +738,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.textSub }]}>Address</Text>
+                <Text style={[styles.label, { color: colors.textSub }]}>Office / Home Address</Text>
                 <TextInput
                   style={[styles.input, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border }]}
                   placeholder="Client's mailing address"

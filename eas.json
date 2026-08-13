@@ -14,6 +14,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://wfspwemzbprucailzuvr.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indmc3B3ZW16YnBydWNhaWx6dXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NTkwMjIsImV4cCI6MjEwMTQzNTAyMn0.VP_-CD9qSzKGbUH_o-H2nEpuNWIpyJS3HWfbJH6Zx8Y"

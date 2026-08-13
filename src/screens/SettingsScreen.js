@@ -20,7 +20,7 @@ import { supabase } from '../../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.5';
 
 export default function SettingsScreen() {
   const { isDark, toggle, colors } = useTheme();

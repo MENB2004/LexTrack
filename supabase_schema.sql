@@ -13,7 +13,9 @@ create table if not exists cases (
   case_number       text not null unique,
   client_name       text not null,
   case_type         text not null,        -- 'Civil' | 'Criminal' | 'Family' | 'Corporate'
+  case_category     text not null default 'New', -- 'New' | 'Old'
   date_filed        date not null,
+  last_hearing_date date,
   next_hearing_date date,
   status            text not null default 'Active',   -- 'Active' | 'Closed'
   is_priority       boolean not null default false,   -- Star / Important flag

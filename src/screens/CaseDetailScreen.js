@@ -219,11 +219,17 @@ export default function CaseDetailScreen({ route, navigation }) {
     try {
       const dateFormatted = `${newHearingDate.getFullYear()}-${String(newHearingDate.getMonth() + 1).padStart(2, '0')}-${String(newHearingDate.getDate()).padStart(2, '0')}`;
       
+      const updatePayload = {
+        next_hearing_date: dateFormatted,
+      };
+
+      if (caseData.next_hearing_date && caseData.next_hearing_date !== dateFormatted) {
+        updatePayload.last_hearing_date = caseData.next_hearing_date;
+      }
+
       const { error } = await supabase
         .from('cases')
-        .update({
-          next_hearing_date: dateFormatted,
-        })
+        .update(updatePayload)
         .eq('id', caseId);
 
       if (error) {
@@ -236,7 +242,7 @@ export default function CaseDetailScreen({ route, navigation }) {
         
         const updatedCase = {
           ...caseData,
-          next_hearing_date: dateFormatted,
+          ...updatePayload,
         };
 
         if (caseData.is_priority) {
@@ -404,8 +410,34 @@ export default function CaseDetailScreen({ route, navigation }) {
         <View style={[styles.detailsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
             <Text style={[styles.caseNumber, { color: colors.text }]}>{caseData.case_number}</Text>
-            <View style={[styles.typeBadge, { backgroundColor: typeColor }]}>
-              <Text style={styles.typeText}>{caseData.case_type}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {caseData.case_category && (
+                <View style={[
+                  styles.categoryBadge,
+                  {
+                    backgroundColor: caseData.case_category === 'Old'
+                      ? (isDark ? 'rgba(234, 179, 8, 0.15)' : '#fef3c7')
+                      : (isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe'),
+                    borderColor: caseData.case_category === 'Old'
+                      ? (isDark ? '#ca8a04' : '#f59e0b')
+                      : (isDark ? '#0284c7' : '#38bdf8'),
+                  }
+                ]}>
+                  <Text style={[
+                    styles.categoryBadgeText,
+                    {
+                      color: caseData.case_category === 'Old'
+                        ? (isDark ? '#fde047' : '#b45309')
+                        : (isDark ? '#38bdf8' : '#0284c7'),
+                    }
+                  ]}>
+                    {caseData.case_category === 'Old' ? '📁 Old Case' : '✨ New Case'}
+                  </Text>
+                </View>
+              )}
+              <View style={[styles.typeBadge, { backgroundColor: typeColor }]}>
+                <Text style={styles.typeText}>{caseData.case_type}</Text>
+              </View>
             </View>
           </View>
 
@@ -454,6 +486,28 @@ export default function CaseDetailScreen({ route, navigation }) {
               </View>
             </View>
           </View>
+
+          {/* LAST HEARING DATE (FOR OLD CASES OR PREVIOUSLY RECORDED) */}
+          {(caseData.last_hearing_date || caseData.case_category === 'Old') && (
+            <View style={styles.infoRow}>
+              <Text style={[styles.label, { color: colors.textSub }]}>Last Hearing Date</Text>
+              {caseData.last_hearing_date ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="time-outline" size={16} color={colors.textSub} style={{ marginRight: 6 }} />
+                  <Text style={[styles.value, { color: colors.text }]}>
+                    {new Date(caseData.last_hearing_date).toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.valuePlaceholder, { color: colors.textSub }]}>No previous hearing recorded</Text>
+              )}
+            </View>
+          )}
 
           {/* NEXT HEARING DATE */}
           <View style={styles.infoRow}>
@@ -1018,6 +1072,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
     textTransform: 'uppercase',
+  },
+  categoryBadge: {
+    borderRadius: 6,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   infoRow: {
     marginBottom: 16,

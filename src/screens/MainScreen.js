@@ -279,7 +279,7 @@ export default function MainScreen({ navigation, route }) {
 
           <View style={[styles.drawerFooter, { borderColor: colors.border }]}>
             <Text style={[styles.footerText, { color: colors.textSub }]}>LexTrack Counsel Portal</Text>
-            <Text style={styles.footerVersion}>v1.0.5 Stable</Text>
+            <Text style={styles.footerVersion}>v1.0.6 Stable</Text>
           </View>
         </Animated.View>
       )}

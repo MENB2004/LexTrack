@@ -32,10 +32,12 @@ export default function AddCaseScreen({ navigation, selectView }) {
   const { isDark, colors } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width > 768;
+  const [caseCategory, setCaseCategory] = useState('New'); // 'New' | 'Old'
   const [caseNumber, setCaseNumber] = useState('');
   const [clientName, setClientName] = useState('');
   const [caseType, setCaseType] = useState('Civil');
   const [dateFiled, setDateFiled] = useState(new Date());
+  const [lastHearingDate, setLastHearingDate] = useState(null);
   const [nextHearingDate, setNextHearingDate] = useState(null);
   const [status, setStatus] = useState('Active');
   const [isPriority, setIsPriority] = useState(false);
@@ -163,22 +165,31 @@ export default function AddCaseScreen({ navigation, selectView }) {
       if (error) {
         Alert.alert('Error adding client', error.message);
       } else {
-        setClientId(createdClient.id);
-        setClientName(createdClient.full_name);
-        
+        // Refresh clients list first
         const { data: clientsData } = await supabase
           .from('clients')
           .select('id, full_name')
           .order('full_name', { ascending: true });
         if (clientsData) setClients(clientsData);
 
+        // Auto-select the newly created client
+        setClientId(createdClient.id);
+        setClientName(createdClient.full_name);
+
+        // Reset new client form fields
         setNewClientName('');
         setNewClientPhone('');
         setNewClientEmail('');
         setNewClientAddress('');
         setNewClientNotes('');
+
+        // Close the modal after all state is set
         setShowNewClientForm(false);
-        Alert.alert('Success', `Client profile created and selected: ${createdClient.full_name}`);
+
+        // Show success alert after state updates are queued
+        setTimeout(() => {
+          Alert.alert('Success', `Client "${createdClient.full_name}" has been created and auto-selected for this case.`);
+        }, 100);
       }
     } catch (err) {
       console.error(err);
@@ -193,16 +204,33 @@ export default function AddCaseScreen({ navigation, selectView }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [showFiledPicker, setShowFiledPicker] = useState(false);
+  const [showLastHearingPicker, setShowLastHearingPicker] = useState(false);
   const [showHearingPicker, setShowHearingPicker] = useState(false);
 
   const onFiledDateChange = (event, selectedDate) => {
     setShowFiledPicker(false);
     if (selectedDate) {
-      if (selectedDate > new Date()) {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (selectedDate > today) {
         setErrorMsg('Date Filed cannot be in the future.');
         return;
       }
       setDateFiled(selectedDate);
+      setErrorMsg('');
+    }
+  };
+
+  const onLastHearingDateChange = (event, selectedDate) => {
+    setShowLastHearingPicker(false);
+    if (selectedDate) {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (selectedDate > today) {
+        Alert.alert('Validation Error', 'Last Hearing Date cannot be in the future.');
+        return;
+      }
+      setLastHearingDate(selectedDate);
       setErrorMsg('');
     }
   };
@@ -215,6 +243,14 @@ export default function AddCaseScreen({ navigation, selectView }) {
       if (selectedDate < today) {
         Alert.alert('Validation Error', 'Next Hearing Date cannot be in the past.');
         return;
+      }
+      if (caseCategory === 'Old' && lastHearingDate) {
+        const lastH = new Date(lastHearingDate);
+        lastH.setHours(0, 0, 0, 0);
+        if (selectedDate < lastH) {
+          Alert.alert('Validation Error', 'Next Hearing Date must be on or after the Last Hearing Date.');
+          return;
+        }
       }
       setNextHearingDate(selectedDate);
     }
@@ -260,6 +296,9 @@ export default function AddCaseScreen({ navigation, selectView }) {
       // Format dates correctly for database storage (YYYY-MM-DD) using LOCAL time
       const formatLocalDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const dateFiledFormatted = formatLocalDate(dateFiled);
+      const lastHearingFormatted = (caseCategory === 'Old' && lastHearingDate)
+        ? formatLocalDate(lastHearingDate)
+        : null;
       const nextHearingFormatted = nextHearingDate 
         ? formatLocalDate(nextHearingDate)
         : null;
@@ -273,7 +312,9 @@ export default function AddCaseScreen({ navigation, selectView }) {
           client_name: clientName.trim(),
           client_id: clientId,
           case_type: caseType,
+          case_category: caseCategory,
           date_filed: dateFiledFormatted,
+          last_hearing_date: lastHearingFormatted,
           next_hearing_date: nextHearingFormatted,
           status: status,
           is_priority: isPriority,
@@ -288,12 +329,15 @@ export default function AddCaseScreen({ navigation, selectView }) {
         setErrorMsg(error.message);
       } else {
         // Log Activity
-        await logActivity(newCase.id, 'created', `Case registered under ${newCase.case_type} field.`);
+        const activityMsg = caseCategory === 'Old'
+          ? `Old case registered under ${newCase.case_type} field${lastHearingFormatted ? ` with last hearing on ${lastHearingFormatted}` : ''}${nextHearingFormatted ? ` and next hearing on ${nextHearingFormatted}` : ''}.`
+          : `Case registered under ${newCase.case_type} field.`;
+        await logActivity(newCase.id, 'created', activityMsg);
 
         // Notify user of case registration success
         Alert.alert(
           'Case Registered',
-          `Case Number ${newCase.case_number} has been created successfully.`,
+          `Case Number ${newCase.case_number} (${caseCategory === 'Old' ? 'Old Case' : 'New Case'}) has been created successfully.`,
           [{ text: 'OK' }]
         );
 
@@ -307,11 +351,13 @@ export default function AddCaseScreen({ navigation, selectView }) {
         }
 
         // Reset form fields
+        setCaseCategory('New');
         setCaseNumber('');
         setClientName('');
         setClientId(null);
         setCaseType('Civil');
         setDateFiled(new Date());
+        setLastHearingDate(null);
         setNextHearingDate(null);
         setStatus('Active');
         setIsPriority(false);
@@ -359,6 +405,70 @@ export default function AddCaseScreen({ navigation, selectView }) {
         ) : null}
 
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* CASE REGISTRATION TYPE (NEW VS OLD) */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: colors.textSub }]}>Case Registration Type *</Text>
+            <View style={[styles.categoryToggleRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <TouchableOpacity
+                style={[
+                  styles.categoryToggleBtn,
+                  caseCategory === 'New' && [styles.categoryToggleBtnActive, { backgroundColor: colors.accent }]
+                ]}
+                onPress={() => {
+                  setCaseCategory('New');
+                  setLastHearingDate(null);
+                }}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="sparkles-outline"
+                  size={16}
+                  color={caseCategory === 'New' ? '#ffffff' : colors.textSub}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.categoryToggleText,
+                    { color: caseCategory === 'New' ? '#ffffff' : colors.textSub }
+                  ]}
+                >
+                  New Case
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.categoryToggleBtn,
+                  caseCategory === 'Old' && [styles.categoryToggleBtnActive, { backgroundColor: colors.accent }]
+                ]}
+                onPress={() => setCaseCategory('Old')}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="folder-open-outline"
+                  size={16}
+                  color={caseCategory === 'Old' ? '#ffffff' : colors.textSub}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.categoryToggleText,
+                    { color: caseCategory === 'Old' ? '#ffffff' : colors.textSub }
+                  ]}
+                >
+                  Old / Ongoing Case
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.helperText, { color: colors.textSub }]}>
+              {caseCategory === 'New'
+                ? 'Registering a newly filed case (schedule upcoming hearing date).'
+                : 'Registering an ongoing/pre-existing case (record last past hearing & next upcoming hearing).'}
+            </Text>
+          </View>
+
           {/* CASE NUMBER */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.textSub }]}>Case Number *</Text>
@@ -400,8 +510,6 @@ export default function AddCaseScreen({ navigation, selectView }) {
             </TouchableOpacity>
           </View>
 
-
-
           {/* DATE FILED */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.textSub }]}>Date Filed</Text>
@@ -410,7 +518,9 @@ export default function AddCaseScreen({ navigation, selectView }) {
                 value={dateFiled}
                 onChange={(selected) => {
                   if (selected) {
-                    if (selected > new Date()) {
+                    const today = new Date();
+                    today.setHours(23, 59, 59, 999);
+                    if (selected > today) {
                       Alert.alert('Validation Error', 'Date Filed cannot be in the future.');
                       return;
                     }
@@ -442,9 +552,73 @@ export default function AddCaseScreen({ navigation, selectView }) {
             )}
           </View>
 
-          {/* NEXT HEARING DATE */}
+          {/* FOR OLD CASES: LAST HEARING DATE (PAST DATE) */}
+          {caseCategory === 'Old' && (
+            <View style={styles.inputGroup}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <Ionicons name="time-outline" size={15} color={colors.textSub} style={{ marginRight: 5 }} />
+                <Text style={[styles.label, { color: colors.textSub, marginBottom: 0 }]}>Last Hearing Date (Past Date)</Text>
+              </View>
+              {Platform.OS === 'web' ? (
+                <WebDatePicker
+                  value={lastHearingDate}
+                  onChange={(selected) => {
+                    if (selected) {
+                      const today = new Date();
+                      today.setHours(23, 59, 59, 999);
+                      if (selected > today) {
+                        Alert.alert('Validation Error', 'Last Hearing Date cannot be in the future.');
+                        return;
+                      }
+                    }
+                    setLastHearingDate(selected);
+                  }}
+                  maximumDate={new Date()}
+                  placeholder="Select last hearing date (past date)..."
+                />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.dateSelector, { backgroundColor: colors.background, borderColor: colors.border }]}
+                    onPress={() => setShowLastHearingPicker(true)}
+                    disabled={loading}
+                  >
+                    <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
+                    <Text style={[styles.dateText, { color: lastHearingDate ? colors.text : colors.textSub }]}>
+                      {lastHearingDate ? lastHearingDate.toLocaleDateString() : 'Select last hearing date (past date)...'}
+                    </Text>
+                    {lastHearingDate && (
+                      <TouchableOpacity
+                        onPress={() => setLastHearingDate(null)}
+                        style={styles.clearDate}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="close-circle" size={18} color={colors.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                  {showLastHearingPicker && (
+                    <DateTimePicker
+                      value={lastHearingDate || new Date()}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      maximumDate={new Date()}
+                      onChange={onLastHearingDateChange}
+                    />
+                  )}
+                </>
+              )}
+            </View>
+          )}
+
+          {/* NEXT HEARING DATE (UPCOMING / NEW DATES) */}
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSub }]}>Next Hearing Date (Optional)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              <Ionicons name="calendar-outline" size={15} color={colors.accent} style={{ marginRight: 5 }} />
+              <Text style={[styles.label, { color: colors.textSub, marginBottom: 0 }]}>
+                {caseCategory === 'Old' ? 'Next Hearing Date (Upcoming Date)' : 'Next Hearing Date (Optional)'}
+              </Text>
+            </View>
             {Platform.OS === 'web' ? (
               <WebDatePicker
                 value={nextHearingDate}
@@ -456,11 +630,19 @@ export default function AddCaseScreen({ navigation, selectView }) {
                       Alert.alert('Validation Error', 'Next Hearing Date cannot be in the past.');
                       return;
                     }
+                    if (caseCategory === 'Old' && lastHearingDate) {
+                      const lastH = new Date(lastHearingDate);
+                      lastH.setHours(0, 0, 0, 0);
+                      if (selected < lastH) {
+                        Alert.alert('Validation Error', 'Next Hearing Date must be on or after the Last Hearing Date.');
+                        return;
+                      }
+                    }
                   }
                   setNextHearingDate(selected);
                 }}
                 minimumDate={new Date()}
-                placeholder="Set hearing date..."
+                placeholder="Set upcoming hearing date..."
               />
             ) : (
               <>
@@ -471,7 +653,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
                 >
                   <Ionicons name="calendar-outline" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
                   <Text style={[styles.dateText, { color: nextHearingDate ? colors.text : colors.textSub }]}>
-                    {nextHearingDate ? nextHearingDate.toLocaleDateString() : 'Set hearing date...'}
+                    {nextHearingDate ? nextHearingDate.toLocaleDateString() : 'Set upcoming hearing date...'}
                   </Text>
                   {nextHearingDate && (
                     <TouchableOpacity
@@ -600,12 +782,14 @@ export default function AddCaseScreen({ navigation, selectView }) {
 
       {/* CLIENT PICKER MODAL */}
       <Modal visible={showClientModal} transparent animationType="slide">
-        <TouchableOpacity
+        <Pressable
           style={styles.modalOverlay}
-          activeOpacity={1}
           onPress={() => setShowClientModal(false)}
         >
-          <View style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border, maxHeight: '70%' }]}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={[styles.modalHeader, { borderColor: colors.border }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Select Client</Text>
               <TouchableOpacity onPress={() => setShowClientModal(false)}>
@@ -637,6 +821,9 @@ export default function AddCaseScreen({ navigation, selectView }) {
               <FlatList
                 data={clients}
                 keyExtractor={(item) => item.id}
+                style={{ flexShrink: 1 }}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={[
@@ -674,7 +861,7 @@ export default function AddCaseScreen({ navigation, selectView }) {
               </View>
             )}
           </View>
-        </TouchableOpacity>
+        </Pressable>
       </Modal>
 
       {/* NEW CLIENT REGISTRATION MODAL */}
@@ -967,6 +1154,41 @@ const styles = StyleSheet.create({
   },
   clearDate: {
     padding: 2,
+  },
+  categoryToggleRow: {
+    flexDirection: 'row',
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginBottom: 4,
+  },
+  categoryToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  categoryToggleBtnActive: {
+    backgroundColor: '#0284c7',
+    shadowColor: '#0284c7',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  categoryToggleText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    fontWeight: '700',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+    lineHeight: 16,
   },
   toggleRow: {
     flexDirection: 'row',

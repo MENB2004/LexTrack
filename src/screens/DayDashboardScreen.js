@@ -9,6 +9,8 @@ import {
   StatusBar,
   Platform,
   useWindowDimensions,
+  Alert,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -177,6 +179,160 @@ export default function DayDashboardScreen({ route, navigation }) {
     year: 'numeric',
   });
 
+  const handleExportPDF = () => {
+    if (cases.length === 0) {
+      Alert.alert('No Cases', 'There are no cases to export for this date.');
+      return;
+    }
+
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '—';
+      return new Date(dateStr).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    };
+
+    const getCaseTypeColor = (type) => {
+      switch (type) {
+        case 'Civil': return '#0284c7';
+        case 'Criminal': return '#b91c1c';
+        case 'Family': return '#db2777';
+        case 'Corporate': return '#d97706';
+        default: return '#475569';
+      }
+    };
+
+    const tableRows = cases.map((c, i) => `
+      <tr style="${i % 2 === 0 ? 'background-color: #f8fafc;' : 'background-color: #ffffff;'}">
+        <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b; font-size: 13px;">
+          ${c.case_number || '—'}${c.is_priority ? ' <span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;">★ PRIORITY</span>' : ''}
+        </td>
+        <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+          <span style="background-color:${getCaseTypeColor(c.case_type)};color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;text-transform:uppercase;">${c.case_type || '—'}</span>
+        </td>
+        <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 13px;">${formatDate(c.date_filed)}</td>
+        <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: 500; font-size: 13px;">${c.client_name || '—'}</td>
+        <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+          <span style="background-color:${c.status === 'Active' ? '#dcfce7' : '#fee2e2'};color:${c.status === 'Active' ? '#166534' : '#991b1b'};padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;text-transform:uppercase;">${c.status || '—'}</span>
+        </td>
+      </tr>
+    `).join('');
+
+    const priorityCount = cases.filter(c => c.is_priority).length;
+    const activeCount = cases.filter(c => c.status === 'Active').length;
+    const closedCount = cases.filter(c => c.status === 'Closed').length;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>LexTrack — Daily Hearings Report — ${displayDate}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            padding: 40px;
+          }
+          @media print {
+            body { padding: 20px; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div style="border-bottom: 3px solid #0284c7; padding-bottom: 20px; margin-bottom: 28px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <h1 style="font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">LexTrack</h1>
+              <p style="font-size: 13px; color: #64748b; margin-top: 4px;">Case Management System</p>
+            </div>
+            <div style="text-align: right;">
+              <p style="font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Daily Hearings Report</p>
+              <p style="font-size: 16px; font-weight: 700; color: #0284c7; margin-top: 4px;">${displayDate}</p>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap: 16px; margin-bottom: 28px;">
+          <div style="flex:1; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px 18px;">
+            <p style="font-size:11px; color:#0284c7; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Total Cases</p>
+            <p style="font-size:28px; font-weight:800; color:#0c4a6e; margin-top:2px;">${cases.length}</p>
+          </div>
+          <div style="flex:1; background:#fefce8; border:1px solid #fde68a; border-radius:10px; padding:14px 18px;">
+            <p style="font-size:11px; color:#a16207; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Priority</p>
+            <p style="font-size:28px; font-weight:800; color:#78350f; margin-top:2px;">${priorityCount}</p>
+          </div>
+          <div style="flex:1; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:14px 18px;">
+            <p style="font-size:11px; color:#16a34a; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Active</p>
+            <p style="font-size:28px; font-weight:800; color:#14532d; margin-top:2px;">${activeCount}</p>
+          </div>
+          <div style="flex:1; background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:14px 18px;">
+            <p style="font-size:11px; color:#dc2626; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Closed</p>
+            <p style="font-size:28px; font-weight:800; color:#7f1d1d; margin-top:2px;">${closedCount}</p>
+          </div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
+          <thead>
+            <tr style="background-color: #0f172a;">
+              <th style="padding: 12px 14px; text-align: left; color: #e2e8f0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Case Number</th>
+              <th style="padding: 12px 14px; text-align: left; color: #e2e8f0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Case Type</th>
+              <th style="padding: 12px 14px; text-align: left; color: #e2e8f0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Date Registered</th>
+              <th style="padding: 12px 14px; text-align: left; color: #e2e8f0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Client Name</th>
+              <th style="padding: 12px 14px; text-align: left; color: #e2e8f0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+          <p style="font-size: 11px; color: #94a3b8;">Generated on ${new Date().toLocaleString('en-IN')} — LexTrack</p>
+          <p style="font-size: 11px; color: #94a3b8;">Page 1 of 1</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    if (Platform.OS === 'web') {
+      // Use a hidden iframe to avoid popup blockers
+      const existingFrame = document.getElementById('lextrack-pdf-frame');
+      if (existingFrame) existingFrame.remove();
+
+      const iframe = document.createElement('iframe');
+      iframe.id = 'lextrack-pdf-frame';
+      iframe.style.position = 'fixed';
+      iframe.style.top = '-10000px';
+      iframe.style.left = '-10000px';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      iframeDoc.open();
+      iframeDoc.write(htmlContent);
+      iframeDoc.close();
+
+      // Wait for content and fonts to load, then print
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        // Clean up iframe after printing
+        setTimeout(() => {
+          iframe.remove();
+        }, 1000);
+      }, 600);
+    }
+  };
+
   return (
     <SafeAreaView 
       style={[
@@ -206,7 +362,25 @@ export default function DayDashboardScreen({ route, navigation }) {
               <Text style={[styles.headerTitle, { color: colors.text }]}>Daily Hearings</Text>
               <Text style={[styles.headerSubtitle, { color: colors.accent }]}>{displayDate}</Text>
             </View>
-            <View style={{ width: 32 }} />
+            {Platform.OS === 'web' && cases.length > 0 && (
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  styles.exportButton,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  hovered && { backgroundColor: colors.accent, borderColor: colors.accent },
+                  pressed && { opacity: 0.8 },
+                ]}
+                onPress={handleExportPDF}
+              >
+                {({ hovered }) => (
+                  <>
+                    <Ionicons name="download-outline" size={16} color={hovered ? '#ffffff' : colors.accent} style={{ marginRight: 6 }} />
+                    <Text style={[styles.exportButtonText, { color: hovered ? '#ffffff' : colors.accent }]}>Export PDF</Text>
+                  </>
+                )}
+              </Pressable>
+            )}
+            {(Platform.OS !== 'web' || cases.length === 0) && <View style={{ width: 32 }} />}
           </View>
 
           {/* CASE LIST */}
@@ -394,5 +568,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 18,
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    transitionProperty: 'all',
+    transitionDuration: '200ms',
+  },
+  exportButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

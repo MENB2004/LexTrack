@@ -250,6 +250,17 @@ export default function DashboardScreen({ navigation, selectView }) {
 
         <View style={[styles.cardFooter, { borderColor: colors.border }]}>
           <View style={styles.badgeContainer}>
+            {item.case_category === 'Old' && (
+              <View style={[
+                styles.oldCategoryBadge,
+                {
+                  backgroundColor: isDark ? 'rgba(234, 179, 8, 0.15)' : '#fef3c7',
+                  borderColor: isDark ? '#ca8a04' : '#f59e0b',
+                }
+              ]}>
+                <Text style={[styles.oldCategoryBadgeText, { color: isDark ? '#fde047' : '#b45309' }]}>Old Case</Text>
+              </View>
+            )}
             <View style={[styles.typeBadge, { backgroundColor: typeColor }]}>
               <Text style={styles.typeText}>{item.case_type}</Text>
             </View>
@@ -263,6 +274,17 @@ export default function DashboardScreen({ navigation, selectView }) {
               <Ionicons name="calendar-outline" size={14} color={colors.textSub} style={{ marginRight: 4 }} />
               <Text style={[styles.hearingText, { color: colors.textSub }]}>
                 {new Date(item.next_hearing_date).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </Text>
+            </View>
+          ) : item.last_hearing_date ? (
+            <View style={styles.hearingContainer}>
+              <Ionicons name="time-outline" size={14} color={colors.textSub} style={{ marginRight: 4 }} />
+              <Text style={[styles.hearingText, { color: colors.textSub }]}>
+                Last: {new Date(item.last_hearing_date).toLocaleDateString(undefined, {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -642,12 +664,26 @@ const styles = StyleSheet.create({
   badgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  oldCategoryBadge: {
+    borderRadius: 6,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    marginRight: 2,
+  },
+  oldCategoryBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   typeBadge: {
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    marginRight: 8,
+    marginRight: 2,
   },
   typeText: {
     fontSize: 11,
